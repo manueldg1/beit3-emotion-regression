@@ -95,57 +95,61 @@ def load_beit3_model(model_name,
     if checkpoint_path:
         sd = load_checkpoint_dict(checkpoint_path)
 
-# ─── POSITIONAL EMBEDDING INTERPOLATION (224 -> 480) ───────────────────
+# ─── VISION POSITIONAL EMBEDDING INTERPOLATION ──────────────────
         if "beit3.vision_embed.pos_embed" in sd:
             pos_embed_checkpoint = sd["beit3.vision_embed.pos_embed"]
             embedding_size = pos_embed_checkpoint.shape[-1]
-            num_extra_tokens = 1 # CLS token (not part of the spatial grid)
+            num_extra_tokens = 1 # CLS token
             
-            # Original grid size: sqrt(197 - 1) = 14
             old_grid_size = int(math.sqrt(pos_embed_checkpoint.shape[1] - num_extra_tokens))
-            # Target grid size for 480px: sqrt(900) = 30
             new_grid_size = int(math.sqrt(model.beit3.vision_embed.num_patches))
             
             if old_grid_size != new_grid_size:
-                print(f"Resizing pos_embed: {old_grid_size}x{old_grid_size} -> {new_grid_size}x{new_grid_size}")
-                
-                # Separate CLS token from spatial tokens
+                print(f"Resizing Vision pos_embed: {old_grid_size}x{old_grid_size} -> {new_grid_size}x{new_grid_size}")
                 extra_tokens = pos_embed_checkpoint[:, :num_extra_tokens]
                 pos_tokens = pos_embed_checkpoint[:, num_extra_tokens:]
-                
-                # Reshape to [Batch, Channels, Height, Width] for interpolation
-                # Channels here is the embedding dimension (1024)
                 pos_tokens = pos_tokens.reshape(-1, old_grid_size, old_grid_size, embedding_size).permute(0, 3, 1, 2)
-                
-                # Use bicubic interpolation to upscale the positional grid
                 pos_tokens = torch.nn.functional.interpolate(
                     pos_tokens, size=(new_grid_size, new_grid_size), mode='bicubic', align_corners=False)
-                
-                # Flatten back to sequence format: [Batch, New_Num_Patches, 1024]
                 pos_tokens = pos_tokens.permute(0, 2, 3, 1).flatten(1, 2)
-                
-                # Concatenate back the CLS token and update the state dict
                 sd["beit3.vision_embed.pos_embed"] = torch.cat((extra_tokens, pos_tokens), dim=1)
 
-        # Remove pre-trained text embeddings to inject our aligned XLM-R vectors later
+        # ─── ENCODER POSITIONAL EMBEDDING INTERPOLATION ──────────────────
+        # This fixes the "size mismatch for beit3.encoder.embed_positions.A.weight" error
+        if "beit3.encoder.embed_positions.A.weight" in sd:
+            enc_pos_checkpoint = sd["beit3.encoder.embed_positions.A.weight"]
+            embedding_size = enc_pos_checkpoint.shape[-1]
+            num_extra_tokens = 3 # Special tokens/offsets in BEiT-3 encoder
+            
+            old_grid_size = int(math.sqrt(enc_pos_checkpoint.shape[0] - num_extra_tokens))
+            new_grid_size = int(math.sqrt(model.beit3.encoder.embed_positions.A.weight.shape[0] - num_extra_tokens))
+            
+            if old_grid_size != new_grid_size:
+                print(f"Resizing Encoder pos_embed: {old_grid_size}x{old_grid_size} -> {new_grid_size}x{new_grid_size}")
+                extra_tokens = enc_pos_checkpoint[:num_extra_tokens, :]
+                pos_tokens = enc_pos_checkpoint[num_extra_tokens:, :]
+                pos_tokens = pos_tokens.reshape(1, old_grid_size, old_grid_size, embedding_size).permute(0, 3, 1, 2)
+                pos_tokens = torch.nn.functional.interpolate(
+                    pos_tokens, size=(new_grid_size, new_grid_size), mode='bicubic', align_corners=False)
+                pos_tokens = pos_tokens.permute(0, 2, 3, 1).flatten(0, 1)
+                sd["beit3.encoder.embed_positions.A.weight"] = torch.cat((extra_tokens, pos_tokens), dim=0)
+
+        # Remove pre-trained text embeddings to inject our aligned XLM-R vectors
         sd.pop("beit3.text_embed.weight", None)
         
-        # Load the weights into the model. 
-        # strict=False allows missing weights (like the new regression head)
+        # Load weights into the model
         model.load_state_dict(sd, strict=False)
-        print("✓ Backbone loaded and interpolated for higher resolution.")
+        print("✓ Backbone loaded and all positional embeddings interpolated.")
 
-        # ─── INJECT MAPPED EMBEDDINGS ──────────────────────────────────────────
-        # Load the XLM-R vectors already aligned to BEiT-3 space via VecMap
+        # ─── INJECT MAPPED EMBEDDINGS ───────────────────────────────────────
         new_emb = torch.load(xlmr_embeddings_path)
         inject_new_embeddings(model, new_emb)
         print("✓ Injected cross-lingual aligned embeddings.")
 
     return model, tokenizer
 
-# ─── MAIN EXECUTION ───────────────────────────────────────────────────────────
+# ─── MAIN EXECUTION ─────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    # Use the custom model registered for 480px resolution and regression tasks
     model_name = "beit3_large_patch16_480_valence_arousal" 
     tokenizer_model_name = "xlm-roberta-large"
     xlmr_embeddings_path = XLMR_EMB_PATH
