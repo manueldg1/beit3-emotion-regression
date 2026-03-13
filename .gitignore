@@ -1,0 +1,12 @@
+# Ignora tutto di default
+*
+
+# Ma non ignorare i file .py
+!*.py
+
+# E non ignorare questo file .gitignore stesso
+!*.gitignore
+
+# Se hai dei file .md (come il README) o .sh che ti servono, aggiungili così:
+!*.md
+!*.sh
