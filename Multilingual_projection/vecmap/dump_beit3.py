@@ -142,3 +142,9 @@ if __name__ == "__main__":
                                         xlmr_embeddings_path, checkpoint_path)
     
     print(f"Model {model_name} is ready for fine-tuning at 480x480 resolution.")
+
+    save_name = "beit3_large_480_va_regression_multilingual.pth"
+    torch.save(model.state_dict(), save_name)
+    
+    print(f"✓ Weights saved to: {os.path.abspath(save_name)}")
+    print(f"Now you can use this file in your training script.")
