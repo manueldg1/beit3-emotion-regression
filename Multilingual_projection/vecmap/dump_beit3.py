@@ -3,7 +3,6 @@ import numpy as np
 from transformers import XLMRobertaTokenizer
 import os
 from timm.models import create_model
-from modeling_finetune import BEiT3ForValenceArousalRegression
 
 import math
 import torch
@@ -16,6 +15,7 @@ from torchscale.architecture.config import EncoderConfig
 
 # Add the BEiT-3 root directory to sys.path to allow importing modeling_finetune
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+from modeling_finetune import BEiT3ForValenceArousalRegression
 
 XLRM_TOKENIZER_VOCAB_SIZE = 250002
 XLMR_EMB_PATH = "xlmr_in_beit3_space.pt"
