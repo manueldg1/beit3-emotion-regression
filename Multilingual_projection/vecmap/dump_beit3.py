@@ -3,6 +3,7 @@ import numpy as np
 from transformers import XLMRobertaTokenizer
 import os
 from timm.models import create_model
+from modeling_finetune import BEiT3ForValenceArousalRegression
 
 import math
 import torch
@@ -12,6 +13,9 @@ from timm.models.layers import trunc_normal_ as __call_trunc_normal_
 from timm.models.registry import register_model
 from torchscale.model.BEiT3 import BEiT3
 from torchscale.architecture.config import EncoderConfig
+
+# Add the BEiT-3 root directory to sys.path to allow importing modeling_finetune
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 XLRM_TOKENIZER_VOCAB_SIZE = 250002
 XLMR_EMB_PATH = "xlmr_in_beit3_space.pt"
@@ -43,43 +47,6 @@ def _get_large_config(img_size=224,
         encoder_layers=24,
         checkpoint_activations=checkpoint_activations,
     )
-
-
-class BEiT3Wrapper(nn.Module):
-
-    def __init__(self, args, **kwargs):
-        super().__init__()
-        self.args = args
-        self.beit3 = BEiT3(args)
-        self.apply(self._init_weights)
-
-    def fix_init_weight(self):
-
-        def rescale(param, layer_id):
-            param.div_(math.sqrt(2.0 * layer_id))
-
-        for layer_id, layer in enumerate(self.blocks):
-            rescale(layer.attn.proj.weight.data, layer_id + 1)
-            rescale(layer.mlp.fc2.weight.data, layer_id + 1)
-
-    def get_num_layers(self):
-        return self.beit3.encoder.num_layers
-
-    @torch.jit.ignore
-    def no_weight_decay(self):
-        return {
-            'pos_embed', 'cls_token', 'beit3.encoder.embed_positions.A.weight',
-            'beit3.vision_embed.cls_token', 'logit_scale'
-        }
-
-    def _init_weights(self, m):
-        if isinstance(m, nn.Linear):
-            trunc_normal_(m.weight, std=.02)
-            if isinstance(m, nn.Linear) and m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-        elif isinstance(m, nn.LayerNorm):
-            nn.init.constant_(m.bias, 0)
-            nn.init.constant_(m.weight, 1.0)
 
 
 @register_model
