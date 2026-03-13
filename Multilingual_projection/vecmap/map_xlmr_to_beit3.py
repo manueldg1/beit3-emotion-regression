@@ -14,9 +14,9 @@ from gensim.models import KeyedVectors
 from transformers import XLMRobertaTokenizer
 
 # ─── Config ────────────────────────────────────────────────────────────────────
-XLMR_MAPPED_TXT = "xlmr_mapped.txt"
+XLMR_MAPPED_TXT = "../xlmr_mapped.txt"
 XLMR_TOKENIZER_DIR = "xlm-roberta-large"
-OUT_FILE = "xlmr_in_beit3_space.pt"
+OUT_FILE = "../xlmr_in_beit3_space.pt"
 
 # ─── 1) load mapped vectors ────────────────────────────────────────────────────
 print("Loading mapped XLM-R vectors from", XLMR_MAPPED_TXT)
