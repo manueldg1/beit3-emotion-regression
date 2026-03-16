@@ -60,91 +60,79 @@ def load_checkpoint_dict(path: str) -> dict:
     return ckpt
 
 def inject_new_embeddings(model: nn.Module, new_emb: torch.Tensor):
-    """Overwrite model’s text_embed.weight with new_emb."""
-    layer = model.beit3.text_embed
+    """
+    Overwrite the text embedding weights within the BEiT-3 core.
+    In your architecture, this layer is located at model.beit3.text_embed.
+    """
+    if hasattr(model, 'beit3') and hasattr(model.beit3, 'text_embed'):
+        layer = model.beit3.text_embed
+        print("✓ Successfully accessed model.beit3.text_embed.")
+    else:
+        # Fallback if structure differs
+        raise AttributeError("Could not find 'text_embed' layer. Check BEiT3Wrapper structure.")
+
     assert layer.weight.shape == new_emb.shape, (
-        f"Expected {layer.weight.shape}, got {new_emb.shape}")
+        f"Dimension mismatch! Expected {layer.weight.shape}, got {new_emb.shape}")
+
+    # Copy the mapped XLM-R embeddings into the model
     layer.weight.data.copy_(new_emb)
+
 
 def load_beit3_model(model_name,
                      tokenizer_model_name="xlm-roberta-large",
                      xlmr_embeddings_path=XLMR_EMB_PATH,
                      checkpoint_path=None):
     """
-    Load BEiT3 model with dual-layer positional interpolation.
+    Load the BEiT-3 model, clean the VQA checkpoint, and inject mapped embeddings.
     """
+    # Load the tokenizer
     tokenizer = XLMRobertaTokenizer.from_pretrained(tokenizer_model_name)
-    model = create_model(model_name, drop_path_rate=0.1)
+    # Create the custom regression model
+    # This uses your registered 'beit3_large_patch16_480_valence_arousal'
+    model = create_model(
+        model_name,
+        drop_path_rate=0.1,
+    )
 
+    # Load the checkpoint if provided
     if checkpoint_path:
-        sd = load_checkpoint_dict(checkpoint_path)
+        state_dict = load_checkpoint_dict(checkpoint_path)
 
-        # ─── 1. VISION POSITIONAL EMBEDDING INTERPOLATION ──────────────────
-        if "beit3.vision_embed.pos_embed" in sd:
-            pos_embed_checkpoint = sd["beit3.vision_embed.pos_embed"]
-            embedding_size = pos_embed_checkpoint.shape[-1]
-            num_extra_tokens = 1
-                        old_grid_size = int(math.sqrt(pos_embed_checkpoint.shape[1] - num_extra_tokens))
-            new_grid_size = int(math.sqrt(model.beit3.vision_embed.num_patches))
+        # 1. Remove the original text embedding weight
+        state_dict.pop("beit3.text_embed.weight", None)
 
-            if old_grid_size != new_grid_size:
-                print(f"Resizing Vision pos_embed: {old_grid_size}x{old_grid_size} -> {new_grid_size}x{new_grid_size}")
-                extra_tokens = pos_embed_checkpoint[:, :num_extra_tokens]
-                pos_tokens = pos_embed_checkpoint[:, num_extra_tokens:]
-                pos_tokens = pos_tokens.reshape(-1, old_grid_size, old_grid_size, embedding_size).permute(0, 3, 1, 2)
-                pos_tokens = torch.nn.functional.interpolate(
-                    pos_tokens, size=(new_grid_size, new_grid_size), mode='bicubic', align_corners=False)
-                pos_tokens = pos_tokens.permute(0, 2, 3, 1).flatten(1, 2)
-                sd["beit3.vision_embed.pos_embed"] = torch.cat((extra_tokens, pos_tokens), dim=1)
+        # 2. Filter out non-backbone parameters (VQA heads, etc.)
+        # We only keep keys starting with 'beit3.' to protect your custom heads/pooler
+        backbone_keys = [k for k in state_dict.keys() if k.startswith("beit3.")]
+        clean_sd = {k: state_dict[k] for k in backbone_keys}
 
-        # ─── 2. ENCODER POSITIONAL EMBEDDING INTERPOLATION ──────────────────
-        if "beit3.encoder.embed_positions.A.weight" in sd:
-            enc_pos_checkpoint = sd["beit3.encoder.embed_positions.A.weight"]
-            embedding_size = enc_pos_checkpoint.shape[-1]
-            num_extra_tokens = 3
+        print(f"✓ Extracted {len(clean_sd)} backbone parameters from checkpoint.")
 
-            old_grid_size = int(math.sqrt(enc_pos_checkpoint.shape[0] - num_extra_tokens))
-            new_grid_size = int(math.sqrt(model.beit3.encoder.embed_positions.A.weight.shape[0] - num_extra_tokens))
+        # Load the cleaned state dict into the model
+        # strict=False allows your new MLP heads to remain initialized with your scale (0.001)
+        model.load_state_dict(clean_sd, strict=False)
+        print("✓ Backbone loaded successfully.")
 
-            if old_grid_size != new_grid_size:
-                print(f"Resizing Encoder pos_embed: {old_grid_size}x{old_grid_size} -> {new_grid_size}x{new_grid_size}")
-                extra_tokens = enc_pos_checkpoint[:num_extra_tokens, :]
-                pos_tokens = enc_pos_checkpoint[num_extra_tokens:, :]
+        # 3. Inject the mapped XLM-R into BEiT-3 embeddings
+        new_embeddings = torch.load(xlmr_embeddings_path)
+                
+        # Confirm vocab size matches
+        assert len(tokenizer) == new_embeddings.shape[0], (
+            f"Tokenizer vocab ({len(tokenizer)}) != embeddings ({new_embeddings.shape[0]})")
 
-                # Interpolation
-                pos_tokens = pos_tokens.reshape(1, old_grid_size, old_grid_size, embedding_size).permute(0, 3, 1, 2)
-                                pos_tokens = torch.nn.functional.interpolate(
-                    pos_tokens, size=(new_grid_size, new_grid_size), mode='bicubic', align_corners=False)
-
-                # Fixed flattening to maintain 2D [Sequence, Channels]
-                pos_tokens = pos_tokens.permute(0, 2, 3, 1).flatten(0, 2)
-
-                sd["beit3.encoder.embed_positions.A.weight"] = torch.cat((extra_tokens, pos_tokens), dim=0)
-
-        sd.pop("beit3.text_embed.weight", None)
-        model.load_state_dict(sd, strict=False)
-        print("✓ Backbone loaded and all positional embeddings interpolated.")
-
-        # ─── INJECT ALIGNED EMBEDDINGS ──────────────────────────────────────
-        new_emb = torch.load(xlmr_embeddings_path)
-        inject_new_embeddings(model, new_emb)
-        print("✓ Aligned XLM-R embeddings injected.")
+        inject_new_embeddings(model, new_embeddings)
+        print("✓ Injected new XLM-R embeddings.")
 
     return model, tokenizer
 
 if __name__ == "__main__":
+    # Example usage
     model_name = "beit3_large_patch16_480_valence_arousal"
     tokenizer_model_name = "xlm-roberta-large"
     xlmr_embeddings_path = XLMR_EMB_PATH
-    checkpoint_path = "/cfs/home/u036743/emotion_recognition/beit3_large_indomain_patch16_224.pth"
+    checkpoint_path = "/cfs/home/u036743/unilm/beit3/Multilingual_projection/vecmap/beit3_large_patch16_480_vqa.pth"
 
     model, tokenizer = load_beit3_model(model_name, tokenizer_model_name,
                                         xlmr_embeddings_path, checkpoint_path)
-    
-    print(f"Model {model_name} is ready for fine-tuning at 480x480 resolution.")
 
-    save_name = "beit3_large_480_va_regression_multilingual.pth"
-    torch.save(model.state_dict(), save_name)
-    
-    print(f"✓ Weights saved to: {os.path.abspath(save_name)}")
-    print(f"Now you can use this file in your training script.")
+    print("Model and tokenizer loaded successfully.")
