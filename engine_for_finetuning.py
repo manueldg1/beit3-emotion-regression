@@ -81,6 +81,13 @@ class VARegressionHandler(TaskHandler):
         CCC measures the agreement between two variables (predictions and ground truth).
         Formula used: 1 - mean(CCC_Valence, CCC_Arousal)
         """
+
+        # Use float32 to avoid Nan in Mixed Precision (AMP)
+        pred = pred.float()
+        target = target.float()
+        # Use this epsilon visible in FP16 for stability
+        eps = 1e-6
+        
         # Valence Calculation
         pv, tv = pred[:, 0], target[:, 0] # Index 0
         pv_mean, tv_mean = torch.mean(pv), torch.mean(tv)
@@ -88,17 +95,18 @@ class VARegressionHandler(TaskHandler):
         covar_v = torch.mean((pv - pv_mean) * (tv - tv_mean))
         # Adding a small epsilon term = 1e-8 to ensure numerical stability during backpropagation 
         # and avoid division by zero in cases of vanishing variance.
-        ccc_v = (2 * covar_v) / (pv_var + tv_var + (pv_mean - tv_mean)**2 + 1e-8)
+        ccc_v = (2 * covar_v) / (pv_var + tv_var + (pv_mean - tv_mean)**2 + eps)
+        loss_v = 1.0 - torch.clamp(ccc_v, -1, 1)
 
         # Arousal Calculation
         pa, ta = pred[:, 1], target[:, 1] # Index 1
         pa_mean, ta_mean = torch.mean(pa), torch.mean(ta)
         pa_var, ta_var = torch.var(pa, unbiased=False), torch.var(ta, unbiased=False)
         covar_a = torch.mean((pa - pa_mean) * (ta - ta_mean))
-        ccc_a = (2 * covar_a) / (pa_var + ta_var + (pa_mean - ta_mean)**2 + 1e-8)
-
+        ccc_a = (2 * covar_a) / (pa_var + ta_var + (pa_mean - ta_mean)**2 + eps)
+        loss_a = 1.0 - torch.clamp(ccc_a, -1, 1)
         # Return the loss (1 - CCC) to minimize it
-        return 1 - ((ccc_v + ccc_a) / 2)
+        return loss_v, loss_a
 
     def compute_metrics(self, y_pred, y_true):
         """
@@ -170,15 +178,17 @@ class VARegressionHandler(TaskHandler):
 
         elif self.loss_type == 'mse_ccc':
             # Hybrid approach: balances point-to-point error and correlation
-            mse_l = F.mse_loss(logits, label)
-            ccc_l = self.compute_ccc_loss(logits, label)
+            mse_l = F.mse_loss(logits.float(), label.float())
+            l_v, l_a = self.compute_ccc_loss(logits, label)
+            ccc_l = (l_v + l_a) / 2
             loss = (mse_l + ccc_l) / 2
 
         elif self.loss_type == 'robust_ccc':
             # Hybrid approach combining Adaptive Robust loss and CCC
-            residuals = label - logits
+            residuals = (label.float() - logits.float())
             robust_l = torch.mean(self.adaptive.lossfun(residuals))
-            ccc_l = self.compute_ccc_loss(logits, label)
+            l_v, l_a = self.compute_ccc_loss(logits, label)
+            ccc_l = (l_v + l_a) / 2
             loss = (robust_l + ccc_l) / 2
 
         else:
