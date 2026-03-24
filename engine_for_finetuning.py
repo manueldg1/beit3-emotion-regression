@@ -767,7 +767,7 @@ def train_one_epoch(
                 optimizer.zero_grad()
                 if model_ema is not None:
                     model_ema.update(model)
-            loss_scale_value = loss_scaler.state_dict()["scale"]
+            loss_scale_value = 1.0 #loss_scaler.state_dict()["scale"]
 
         torch.cuda.synchronize()
 
