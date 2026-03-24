@@ -734,7 +734,7 @@ def train_one_epoch(
         if loss_scaler is None:
             results = handler.train_batch(model, **data)
         else:
-            with torch.cuda.amp.autocast():
+            with torch.cuda.amp.autocast(enabled=False):
                 results = handler.train_batch(model, **data)
 
         loss = results.pop("loss")
