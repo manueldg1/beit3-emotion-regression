@@ -61,7 +61,7 @@ def get_args():
     # Optimizer parameters
     parser.add_argument('--opt', default='adamw', type=str, metavar='OPTIMIZER',
                         help='Optimizer (default: "adamw"')
-    parser.add_argument('--opt_eps', default=1e-8, type=float, metavar='EPSILON',
+    parser.add_argument('--opt_eps', default=1e-6, type=float, metavar='EPSILON',
                         help='Optimizer Epsilon (default: 1e-8)')
     parser.add_argument('--opt_betas', default=[0.9, 0.999], type=float, nargs='+', metavar='BETA',
                         help='Optimizer Betas (default: 0.9, 0.999, use opt default)')
