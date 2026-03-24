@@ -334,7 +334,8 @@ def main(args, ds_init):
             args, model_without_ddp, skip_list=skip_weight_decay_list,
             get_num_layer=assigner.get_layer_id if assigner is not None else None, 
             get_layer_scale=assigner.get_scale if assigner is not None else None)
-        loss_scaler = NativeScaler()
+        loss_scaler = None
+        print("WARNING: LOSS SCALER DISABLED - PURE FLOAT32 MODE")
 
     lr_schedule_values = utils.cosine_scheduler(
         args.lr, args.min_lr, args.epochs, num_training_steps_per_epoch,
