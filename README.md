@@ -2,9 +2,7 @@
 
 ## Project Overview
 
-This project extends BEiT-3 for **multimodal emotion regression**, predicting continuous affective dimensions — **valence** and **arousal** — from **image-text inputs**. The goal is to move beyond classification-based approaches and model fine-grained emotional signals, which are more suitable for **real-world and clinical applications**.
-
-The project leverages pretrained vision-language models and integrates textual multilingual inputs, producing a unified framework for **multimodal and multilingual emotion regression**.
+The analysis of emotions expressed in textual documents and/or images has numerous practical applications. The task is commonly modeled as a classification problem, representing affective states (e.g., Ekman’s six basic emotions) as specific classes and using Transformer-based models to represent the inputs and perform the classification. Alternatively, one can consider approaches based on **dimensional emotion analysis**, focused on rating emotions according to a pre-defined set of dimensions and offering a more nuanced way to distinguish between different affective states. In this case, the emotions are represented in a continuous numerical space, with the most common dimensions defined as **valence** and **arousal**. In particular, valence describes the pleasantness of a stimulus, ranging from negative to positive feelings, while arousal represents the degree of excitement provoked by a stimulus, from calm to excited. Apart from a few exceptions, the development of regression models for dimensional emotion analysis has been less studied in the literature.
 
 ---
 
