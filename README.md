@@ -58,5 +58,4 @@ To select the most effective loss function for final fine-tuning, we conducted a
 
 This screening allowed us to empirically identify the most suitable objective for valence-arousal regression before training on the full dataset.
 
----
 
