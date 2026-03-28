@@ -36,17 +36,19 @@ The model allows continuous emotion prediction from **multimodal inputs**, provi
 
 ---
 
-## Data & Fine-tuning
+## Data and Fine-Tuning
 
-- We perform **fine-tuning on ~10% of the dataset** (approximately 400k samples, stratified).  
-- **Loss function selection** was empirically evaluated among:
-  - Mean Squared Error (MSE)  
-  - Robust loss  
-  - Concordance Correlation Coefficient Loss (CCCL)  
-  - MSE + CCCL  
-  - Robust loss + CCCL  
+We perform fine-tuning on multimodal datasets combining images and textual descriptions.
 
-This preliminary screening identifies the most effective objective for valence-arousal regression.
+For selecting the most effective loss function for the final fine-tuning, we conducted a preliminary experiment on a stratified subset of ~10% of the dataset (approximately 400k samples). We evaluated the performance of five candidate losses:
+
+- Mean Squared Error (MSE)
+- Robust loss
+- Concordance Correlation Coefficient Loss (CCCL)
+- MSE + CCCL
+- Robust loss + CCCL
+
+This screening allowed us to empirically identify the most suitable objective for valence-arousal regression before training on the full dataset.
 
 ---
 
@@ -57,11 +59,3 @@ This preliminary screening identifies the most effective objective for valence-a
 
 ---
 
-## Setup
-
-Clone the repo and install required packages:
-
-```bash
-git clone https://github.com/manueldg1/beit3-emotion-regression.git
-cd beit3-emotion-regression
-pip install -r requirements.txt
