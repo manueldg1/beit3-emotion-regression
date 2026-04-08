@@ -48,7 +48,7 @@ We perform fine-tuning on a large collection of datasets (~50 in total), includi
 - **EMOTIC**
 - **IEMOCAP** 
 
-To select the most effective loss function for final fine-tuning, we conducted a preliminary experiment on a **stratified subset of ~10% of the dataset (~400k samples)**. We evaluated five candidate losses:
+To select the most effective loss function for final fine-tuning, I conducted a preliminary experiment on a **stratified subset of 1% of the dataset (~26k samples)** for 7 epochs. We evaluated five candidate losses:
 
 - Mean Squared Error (MSE)  
 - Robust loss  
@@ -56,6 +56,6 @@ To select the most effective loss function for final fine-tuning, we conducted a
 - MSE + CCCL  
 - Robust loss + CCCL  
 
-This screening allowed us to empirically identify the most suitable objective for valence-arousal regression before training on the full dataset.
+Among the candidate loss functions, **MSE achieved the lowest RMSE** and was therefore selected as the objective for the final valence-arousal regression on the full dataset.
 
 
