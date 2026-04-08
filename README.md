@@ -48,7 +48,7 @@ We perform fine-tuning on a large collection of datasets (~50 in total), includi
 - **EMOTIC**
 - **IEMOCAP** 
 
-To select the most effective loss function for final fine-tuning, I conducted a preliminary experiment on a **stratified subset of 1% of the dataset (~26k samples)** for 7 epochs. We evaluated five candidate losses:
+To select the most effective loss function for final fine-tuning, I conducted a preliminary experiment on a **stratified subset of 1% of the dataset** (~26k samples) for 7 epochs. We evaluated five candidate losses:
 
 - Mean Squared Error (MSE)  
 - Robust loss  
