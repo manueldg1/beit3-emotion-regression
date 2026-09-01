@@ -276,12 +276,4 @@ if analyze_btn:
             except Exception as e:
                 st.error(f"🔌 Connection Error: impossibile raggiungere il server FastAPI su `{API_URL}`. Dettagli: {e}")
 
-# ================= FOOTER =================
-st.markdown("---")
-st.markdown("""
-<div style='text-align: center; color: #64748b; padding: 20px;'>
-    <p><strong>Emotion Recognition — Multimodal System</strong></p>
-    <p>BEiT-3 Made Multilingual via the VecMap Framework + Uncertainty Quantification with Optimal Transport-Based Conformal Prediction</p>
-    <p><a href="https://github.com/manueldg1" target="_blank" style="color:#00f2fe; text-decoration:none; font-weight:600;">github.com/manueldg1</a></p>
-</div>
-""", unsafe_allow_html=True)
+Questo sistema è stato sviluppato esclusivamente a fini di ricerca accademica (tesi di laurea). Non è destinato all'uso in contesti di selezione del personale, valutazione psicologica, sorveglianza o qualsiasi altra decisione che riguardi persone reali. Le previsioni non sono cliniche né validate per un uso in produzione.
