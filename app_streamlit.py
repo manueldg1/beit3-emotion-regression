@@ -122,7 +122,7 @@ with btn_container:
     analyze_btn = st.button("🚀 Analyze Emotion", type="primary", use_container_width=True)
 
 # API Endpoint URL
-API_URL = "https://writing-makes-counting-missouri.trycloudflare.com"
+API_URL = "https://writing-makes-counting-missouri.trycloudflare.com/predict"
 
 # Action logic
 if analyze_btn:
