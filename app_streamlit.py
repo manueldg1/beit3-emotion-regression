@@ -1,494 +1,283 @@
-import os
-import json
-import re
-from io import BytesIO
-
 import streamlit as st
-from PIL import Image
+import requests
+import base64
 
-# Optional: use Gemini for multimodal image + text emotion recognition.
-try:
-    import google.generativeai as genai
-except ImportError:
-    genai = None
-
-
-# ============================================================
-# CONFIG
-# ============================================================
+# ================= PAGE CONFIG =================
 st.set_page_config(
-    page_title="EMOTIA | Multimodal Emotion Recognition",
-    page_icon="🧠",
+    page_title="EMOTIS | Multimodal Emotion Recognition",
+    page_icon="🎭",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="collapsed"
 )
 
-API_KEY = os.getenv("GEMINI_API_KEY", "")
-if not API_KEY:
-    try:
-        API_KEY = st.secrets["GEMINI_API_KEY"]
-    except Exception:
-        API_KEY = ""
-
-
-# ============================================================
-# CUSTOM STYLE
-# ============================================================
-st.markdown(
-    """
+# ================= MAIN APP CSS (stessa identica identità grafica di app (1).py) =================
+st.markdown("""
 <style>
-:root {
-    --bg: #080b14;
-    --card: rgba(17, 24, 39, 0.78);
-    --border: rgba(255,255,255,0.10);
-    --cyan: #00f2fe;
-    --blue: #4facfe;
-    --pink: #ff00ff;
-    --muted: #94a3b8;
-    --text: #e5e7eb;
-}
+    :root {
+        --primary: #00f2fe;
+        --primary-glow: #00f2feaa;
+        --primary-dark: #4facfe;
+        --neon-pink: #ff00ff;
+        --neon-purple: #8a2be2;
+        --matrix-green: #00ff41;
+        --bg-deep: #0a0a12;
+        --bg-card: rgba(20, 20, 40, 0.8);
+        --text-glow: 0 0 10px rgba(0, 242, 254, 0.7);
+    }
 
-.stApp {
-    background:
-        radial-gradient(circle at 15% 85%, rgba(79,172,254,.12), transparent 35%),
-        radial-gradient(circle at 85% 15%, rgba(255,0,255,.10), transparent 35%),
-        linear-gradient(135deg, #080b14 0%, #111827 52%, #0b1220 100%);
-    color: var(--text);
-}
+    .stApp {
+        background:
+            radial-gradient(circle at 20% 80%, rgba(79, 172, 254, 0.1) 0%, transparent 50%),
+            radial-gradient(circle at 80% 20%, rgba(255, 0, 255, 0.1) 0%, transparent 50%),
+            radial-gradient(circle at 40% 40%, rgba(0, 242, 254, 0.05) 0%, transparent 50%),
+            linear-gradient(135deg, #0a0a12 0%, #1a1a2e 50%, #16213e 100%);
+        color: #e2e8f0;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        min-height: 100vh;
+    }
 
-#MainMenu, footer, header {
-    visibility: hidden;
-}
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .block-container {padding-top: 1rem;}
 
-.block-container {
-    max-width: 1250px;
-    padding-top: 2rem;
-    padding-bottom: 3rem;
-}
+    @keyframes float { 0%, 100% { transform: translateY(0px) rotate(0deg); } 50% { transform: translateY(-10px) rotate(1deg); } }
+    @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: 0.8; } 100% { transform: scale(1); opacity: 1; } }
+    @keyframes slideIn { 0% { opacity: 0; transform: translateX(-30px); } 100% { opacity: 1; transform: translateX(0); } }
+    @keyframes scanline { 0% { top: 0%; } 100% { top: 100%; } }
+    .floating { animation: float 6s ease-in-out infinite; }
+    .pulse-glow { animation: pulse 2s ease-in-out infinite; }
+    .slide-in { animation: slideIn 0.6s ease-out; }
 
-.hero {
-    text-align: center;
-    padding: 15px 0 35px 0;
-}
+    .hero-title { font-size: 5rem; font-weight: 900; letter-spacing: -3px; background: linear-gradient(135deg, var(--primary) 0%, var(--neon-pink) 50%, var(--primary-dark) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0 0 30px rgba(0, 242, 254, 0.5), 0 0 60px rgba(0, 242, 254, 0.3); margin-bottom: 0; text-align: center; }
+    .hero-subtitle { font-size: 1.8rem; color: #94a3b8; letter-spacing: 6px; text-transform: uppercase; margin-bottom: 3rem; text-align: center; }
 
-.hero h1 {
-    font-size: clamp(2.5rem, 6vw, 5rem);
-    margin: 0;
-    font-weight: 900;
-    letter-spacing: -3px;
-    background: linear-gradient(135deg, var(--cyan), var(--pink), var(--blue));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    text-shadow: 0 0 35px rgba(0,242,254,.20);
-}
+    .section-header { font-size: 1.5rem !important; font-weight: 700 !important; color: #e2e8f0; margin-top: 1rem; margin-bottom: 0.8rem; letter-spacing: 1px; text-transform: uppercase; }
 
-.hero p {
-    color: var(--muted);
-    letter-spacing: 5px;
-    text-transform: uppercase;
-    font-size: .95rem;
-    margin-top: 10px;
-}
+    .glass-card { background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%); backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 24px; padding: 30px; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.2); transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1); }
+    .glass-card:hover { transform: translateY(-8px) scale(1.02); border-color: var(--primary); box-shadow: 0 15px 40px 0 rgba(0, 242, 254, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
 
-.glass {
-    background: linear-gradient(
-        135deg,
-        rgba(255,255,255,.08),
-        rgba(255,255,255,.025)
-    );
-    border: 1px solid var(--border);
-    border-radius: 24px;
-    padding: 24px;
-    box-shadow: 0 12px 40px rgba(0,0,0,.25);
-    backdrop-filter: blur(18px);
-}
+    .stButton>button { background: linear-gradient(135deg, var(--primary) 0%, var(--neon-pink) 50%, var(--primary-dark) 100%) !important; color: #0f172a !important; border: none !important; font-weight: 800 !important; padding: 1rem 2.5rem !important; letter-spacing: 2px !important; text-transform: uppercase !important; border-radius: 50px !important; transition: all 0.3s ease !important; box-shadow: 0 5px 15px rgba(0, 242, 254, 0.3) !important; }
+    .stButton>button:hover { transform: translateY(-3px) scale(1.05) !important; box-shadow: 0 10px 25px rgba(0, 242, 254, 0.5), 0 0 30px rgba(0, 242, 254, 0.3) !important; letter-spacing: 3px !important; }
 
-.section-title {
-    font-size: 1.05rem;
-    font-weight: 800;
-    letter-spacing: 1px;
-    margin-bottom: 14px;
-}
+    .stTextArea textarea { background: rgba(255,255,255,0.05) !important; border: 1px solid rgba(0, 242, 254, 0.3) !important; border-radius: 16px !important; color: #e2e8f0 !important; font-size: 1.05rem !important; }
+    .stTextArea textarea:focus { border-color: var(--primary) !important; box-shadow: 0 0 15px rgba(0, 242, 254, 0.3) !important; }
 
-.badge {
-    display: inline-block;
-    padding: 6px 12px;
-    border-radius: 999px;
-    border: 1px solid rgba(0,242,254,.35);
-    color: var(--cyan);
-    background: rgba(0,242,254,.06);
-    font-size: .75rem;
-    letter-spacing: 1px;
-    margin-bottom: 12px;
-}
+    .scanner-container { position: relative; overflow: hidden; border-radius: 20px; border: 2px solid var(--primary); background: linear-gradient(45deg, rgba(0, 242, 254, 0.1) 0%, transparent 50%); }
+    .scan-line { position: absolute; width: 100%; height: 6px; background: linear-gradient(90deg, transparent, var(--primary), var(--neon-pink), transparent); box-shadow: 0 0 20px var(--primary), 0 0 40px var(--neon-pink); opacity: 0.8; animation: scanline 1.5s linear infinite; z-index: 10; }
 
-.result-card {
-    margin-top: 20px;
-    padding: 28px;
-    border-radius: 24px;
-    background: linear-gradient(
-        135deg,
-        rgba(0,242,254,.08),
-        rgba(255,0,255,.06)
-    );
-    border: 1px solid rgba(0,242,254,.22);
-    box-shadow: 0 0 35px rgba(0,242,254,.08);
-}
+    [data-testid="stSidebar"] { background: rgba(10, 10, 18, 0.9) !important; backdrop-filter: blur(20px) !important; border-right: 1px solid rgba(0, 242, 254, 0.2) !important; }
 
-.emotion {
-    font-size: 2.7rem;
-    font-weight: 900;
-    margin: 5px 0 2px 0;
-    background: linear-gradient(90deg, var(--cyan), var(--pink));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
+    .custom-upload-wrapper [data-testid='stFileUploader'] { width: 100%; }
+    .custom-upload-wrapper [data-testid='stFileUploader'] section {
+        background-color: rgba(0, 242, 254, 0.03);
+        border: 2px dashed var(--primary);
+        border-radius: 20px;
+        padding: 30px;
+        transition: all 0.3s ease;
+        text-align: center;
+    }
+    .custom-upload-wrapper [data-testid='stFileUploader'] section:hover {
+        background-color: rgba(0, 242, 254, 0.1);
+        box-shadow: 0 0 30px rgba(0, 242, 254, 0.2);
+        border-color: var(--neon-pink);
+    }
+    .custom-upload-wrapper [data-testid='stFileUploader'] section button {
+        display: inline-block !important;
+        width: auto !important;
+        height: auto !important;
+        opacity: 1 !important;
+        background: transparent !important;
+        color: var(--primary) !important;
+        border: 1px solid var(--primary) !important;
+        border-radius: 50px !important;
+        padding: 0.5rem 1.5rem !important;
+        margin-top: 10px;
+        transition: all 0.3s ease !important;
+    }
+    .custom-upload-wrapper [data-testid='stFileUploader'] section button:hover {
+        background: var(--primary) !important;
+        color: var(--bg-deep) !important;
+        box-shadow: 0 0 15px var(--primary) !important;
+    }
+    .custom-upload-wrapper [data-testid='stFileUploader'] section > div > div span {
+        color: var(--primary) !important;
+        font-family: 'Courier New', monospace !important;
+        font-weight: bold !important;
+    }
 
-.metric-box {
-    background: rgba(0,0,0,.20);
-    border: 1px solid rgba(255,255,255,.08);
-    border-radius: 16px;
-    padding: 15px;
-    text-align: center;
-}
+    /* ---- Metric cards (Valence / Arousal) ---- */
+    .metric-card {
+        background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(0, 242, 254, 0.25);
+        border-radius: 20px;
+        padding: 24px;
+        text-align: center;
+        box-shadow: 0 8px 32px 0 rgba(0,0,0,0.36);
+        transition: all 0.3s ease;
+    }
+    .metric-card:hover { border-color: var(--primary); box-shadow: 0 0 25px rgba(0, 242, 254, 0.25); transform: translateY(-4px); }
+    .metric-label { font-size: 1.2rem !important; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 0.6rem; }
+    .metric-value {
+        font-size: 3rem !important;
+        font-weight: 900;
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-shadow: 0 0 20px rgba(0, 242, 254, 0.4);
+        margin-bottom: 0.6rem;
+    }
+    .metric-interval {
+        font-size: 1rem !important;
+        font-weight: 600;
+        color: #e2e8f0;
+        background-color: rgba(0, 242, 254, 0.1);
+        border: 1px solid rgba(0, 242, 254, 0.3);
+        padding: 6px 16px;
+        border-radius: 20px;
+        display: inline-block;
+    }
 
-.metric-value {
-    font-size: 1.5rem;
-    font-weight: 800;
-}
+    /* ---- Final emotion banner ---- */
+    .emotion-banner {
+        background: linear-gradient(135deg, var(--neon-purple) 0%, var(--neon-pink) 50%, var(--primary-dark) 100%);
+        color: #0f172a;
+        border-radius: 24px;
+        padding: 28px;
+        text-align: center;
+        margin-top: 2rem;
+        box-shadow: 0 10px 40px -5px rgba(255, 0, 255, 0.4), 0 0 60px rgba(0, 242, 254, 0.15);
+    }
+    .emotion-banner-title { font-size: 1.1rem; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; opacity: 0.85; }
+    .emotion-banner-value { font-size: 3.2rem !important; font-weight: 900; margin-top: 0.5rem; letter-spacing: 1px; }
 
-.metric-label {
-    color: var(--muted);
-    font-size: .75rem;
-    margin-top: 3px;
-}
-
-div[data-testid="stFileUploader"] section {
-    border: 2px dashed rgba(0,242,254,.55) !important;
-    background: rgba(0,242,254,.035) !important;
-    border-radius: 18px !important;
-}
-
-div[data-testid="stFileUploader"] section:hover {
-    background: rgba(0,242,254,.08) !important;
-    box-shadow: 0 0 25px rgba(0,242,254,.12);
-}
-
-.stTextArea textarea {
-    background: rgba(0,0,0,.18) !important;
-    border: 1px solid rgba(255,255,255,.12) !important;
-    border-radius: 16px !important;
-    color: white !important;
-}
-
-.stButton > button {
-    border-radius: 14px;
-    border: 1px solid rgba(0,242,254,.45);
-    background: linear-gradient(90deg, rgba(0,242,254,.16), rgba(255,0,255,.12));
-    color: white;
-    font-weight: 800;
-    letter-spacing: .5px;
-    min-height: 3rem;
-    transition: .25s ease;
-}
-
-.stButton > button:hover {
-    border-color: var(--cyan);
-    box-shadow: 0 0 25px rgba(0,242,254,.18);
-    transform: translateY(-1px);
-}
-
-.small {
-    color: var(--muted);
-    font-size: .85rem;
-}
+    /* --- MOBILE RESPONSIVENESS --- */
+    @media only screen and (max-width: 768px) {
+        .block-container { padding-left: 1rem !important; padding-right: 1rem !important; }
+        .hero-title { font-size: 3rem !important; }
+        .hero-subtitle { font-size: 1.1rem !important; letter-spacing: 3px !important; }
+        .glass-card { padding: 15px !important; }
+        [data-testid="column"] { width: 100% !important; flex: 1 1 auto !important; min-width: auto !important; }
+        .metric-value { font-size: 2.2rem !important; }
+        .emotion-banner-value { font-size: 2.2rem !important; }
+    }
 </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
-
-# ============================================================
-# HELPERS
-# ============================================================
-EMOTIONS = [
-    "joy",
-    "sadness",
-    "anger",
-    "fear",
-    "surprise",
-    "disgust",
-    "neutral",
-]
-
-def clean_json(text: str) -> dict:
-    """Extract a JSON object even if the model wraps it in markdown."""
-    text = text.strip()
-    match = re.search(r"\{.*\}", text, re.DOTALL)
-    if not match:
-        raise ValueError("Model response did not contain JSON.")
-    return json.loads(match.group(0))
-
-
-def analyze_with_gemini(image: Image.Image, text: str) -> dict:
-    if genai is None:
-        raise RuntimeError(
-            "google-generativeai is not installed. Add it to requirements.txt."
-        )
-    if not API_KEY:
-        raise RuntimeError(
-            "GEMINI_API_KEY is missing. Add it to Streamlit Secrets or environment variables."
-        )
-
-    genai.configure(api_key=API_KEY)
-
-    # Keep the model name in one place so it is easy to change later.
-    model = genai.GenerativeModel("gemini-2.0-flash")
-
-    prompt = f"""
-You are a multimodal emotion recognition system.
-
-Analyze BOTH modalities:
-1. The uploaded image.
-2. The provided text.
-
-Determine the dominant emotional state expressed by the combined content.
-Do not infer protected/sensitive personal attributes. Focus only on emotional
-expression conveyed by the image and text.
-
-Choose exactly one dominant emotion from:
-{", ".join(EMOTIONS)}
-
-Also provide:
-- confidence: a number from 0 to 100
-- image_emotion: emotion suggested by the image alone
-- text_emotion: emotion suggested by the text alone
-- explanation: concise explanation of how image and text support the result
-- modality_agreement: "high", "medium", or "low"
-
-Return ONLY valid JSON using exactly this schema:
-{{
-  "emotion": "joy",
-  "confidence": 0,
-  "image_emotion": "neutral",
-  "text_emotion": "neutral",
-  "modality_agreement": "medium",
-  "explanation": "..."
-}}
-
-Text content:
-{text}
-"""
-
-    response = model.generate_content([prompt, image])
-    return clean_json(response.text)
-
-
-# ============================================================
-# HEADER
-# ============================================================
+# ================= HEADER =================
+st.markdown('<div class="hero-title floating">🎭 EMOTIS</div>', unsafe_allow_html=True)
 st.markdown(
-    """
-<div class="hero">
-    <div class="badge">MULTIMODAL AI SYSTEM</div>
-    <h1>EMOTIA</h1>
-    <p>Multimodal Emotion Recognition</p>
-</div>
-""",
-    unsafe_allow_html=True,
+    '<div class="hero-subtitle">Multimodal Emotion Recognition · BEiT-3 · OT-CP+ Conformal Prediction</div>',
+    unsafe_allow_html=True
 )
 
+st.markdown('<div class="glass-card slide-in">', unsafe_allow_html=True)
 
-# ============================================================
-# INPUTS
-# ============================================================
-col_img, col_text = st.columns(2, gap="large")
+col_left, col_right = st.columns([1, 1], gap="large")
 
-with col_img:
-    st.markdown('<div class="glass">', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="section-title">🖼️ IMAGE CONTENT</div>',
-        unsafe_allow_html=True,
+with col_left:
+    st.markdown('<div class="section-header">📥 Input Data</div>', unsafe_allow_html=True)
+    user_text = st.text_area(
+        "Text content:",
+        placeholder="Scrivi qui un messaggio o una frase...",
+        height=140
     )
-    st.markdown(
-        '<div class="small">Upload an image containing the visual emotional cues to analyze.</div>',
-        unsafe_allow_html=True,
-    )
-    st.write("")
+    st.markdown('<div class="custom-upload-wrapper">', unsafe_allow_html=True)
+    uploaded_file = st.file_uploader("Image content:", type=["jpg", "jpeg", "png"])
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    uploaded_file = st.file_uploader(
-        "Upload image",
-        type=["png", "jpg", "jpeg", "webp"],
-        label_visibility="collapsed",
-    )
-
-    image = None
+with col_right:
+    st.markdown('<div class="section-header">🖼️ Image Preview</div>', unsafe_allow_html=True)
     if uploaded_file:
-        image = Image.open(uploaded_file).convert("RGB")
-        st.image(image, use_container_width=True)
-        st.success("Image loaded")
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-with col_text:
-    st.markdown('<div class="glass">', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="section-title">📝 TEXT CONTENT</div>',
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        '<div class="small">Enter the text that should be interpreted together with the image.</div>',
-        unsafe_allow_html=True,
-    )
-    st.write("")
-
-    text_content = st.text_area(
-        "Text content",
-        height=260,
-        placeholder="Example: I can't believe this finally happened...",
-        label_visibility="collapsed",
-    )
-
-    if text_content.strip():
-        st.success("Text loaded")
+        img_b64 = base64.b64encode(uploaded_file.getvalue()).decode("utf-8")
+        st.markdown(f"""
+            <div class="scanner-container">
+                <div class="scan-line"></div>
+                <img src="data:{uploaded_file.type};base64,{img_b64}"
+                     width="100%" style="border-radius: 18px; display: block; opacity: 0.95;">
+            </div>
+        """, unsafe_allow_html=True)
     else:
-        st.info("Waiting for text content...")
+        st.info("Nessuna immagine caricata. Carica un'immagine per visualizzare l'anteprima.")
 
-    st.markdown("</div>", unsafe_allow_html=True)
+st.markdown("<br>", unsafe_allow_html=True)
+analyze_btn = st.button("🚀 Analyze Contents and Predict Results", type="primary", use_container_width=True)
 
+st.markdown('</div>', unsafe_allow_html=True)  # chiude glass-card input
 
-st.write("")
-st.markdown(
-    '<div style="text-align:center; color:#94a3b8; margin-bottom:10px;">'
-    "The model combines visual and linguistic evidence before predicting the dominant emotion."
-    "</div>",
-    unsafe_allow_html=True,
-)
+# ================= API ENDPOINT =================
+API_URL = "https://writing-makes-counting-missouri.trycloudflare.com"
 
-analyze = st.button(
-    "🧠 ANALYZE CONTENTS & PREDICT EMOTION",
-    use_container_width=True,
-    type="primary",
-)
-
-
-# ============================================================
-# ANALYSIS
-# ============================================================
-if analyze:
-    if image is None:
-        st.error("Please upload an image first.")
-    elif not text_content.strip():
-        st.error("Please enter some text content first.")
+# ================= ACTION LOGIC =================
+if analyze_btn:
+    if not user_text and not uploaded_file:
+        st.error("⚠️ Fornisci almeno un testo o un'immagine per eseguire la predizione.")
     else:
-        with st.spinner("Analyzing image + text and predicting emotion..."):
+        files = {}
+        data = {}
+
+        if uploaded_file:
+            files['image'] = (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)
+        if user_text:
+            data['text'] = user_text
+
+        with st.spinner("Elaborazione della rappresentazione multimodale in corso..."):
             try:
-                result = analyze_with_gemini(image, text_content)
+                response = requests.post(API_URL, data=data, files=files if files else None)
 
-                # Normalize model output for the UI.
-                result["emotion"] = str(result.get("emotion", "neutral")).lower()
-                result["confidence"] = float(result.get("confidence", 0))
-                result["confidence"] = max(0, min(100, result["confidence"]))
+                if response.status_code == 200:
+                    result = response.json()
 
-                st.session_state["emotion_result"] = result
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    st.markdown('<div class="glass-card slide-in">', unsafe_allow_html=True)
+                    st.markdown('<div class="section-header">📊 Prediction Results</div>', unsafe_allow_html=True)
+
+                    res_col1, res_col2 = st.columns(2, gap="medium")
+
+                    with res_col1:
+                        val_score = round(result.get("Valence", 0.0), 4)
+                        val_int = result.get("Valence_Interval", "N/A")
+                        st.markdown(f"""
+                            <div class="metric-card">
+                                <div class="metric-label">Valence</div>
+                                <div class="metric-value">{val_score}</div>
+                                <div class="metric-interval">OT-CP+: <b>{val_int}</b></div>
+                            </div>
+                        """, unsafe_allow_html=True)
+
+                    with res_col2:
+                        aro_score = round(result.get("Arousal", 0.0), 4)
+                        aro_int = result.get("Arousal_Interval", "N/A")
+                        st.markdown(f"""
+                            <div class="metric-card">
+                                <div class="metric-label">Arousal</div>
+                                <div class="metric-value">{aro_score}</div>
+                                <div class="metric-interval">OT-CP+: <b>{aro_int}</b></div>
+                            </div>
+                        """, unsafe_allow_html=True)
+
+                    predicted_emotion = result.get("Emotion", "N/A")
+                    st.markdown(f"""
+                        <div class="emotion-banner pulse-glow">
+                            <div class="emotion-banner-title">Predicted Emotion Category</div>
+                            <div class="emotion-banner-value">{predicted_emotion}</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+                    st.markdown('</div>', unsafe_allow_html=True)  # chiude glass-card risultati
+
+                else:
+                    st.error(f"❌ API Error ({response.status_code}): {response.text}")
 
             except Exception as e:
-                st.error(f"Analysis failed: {e}")
+                st.error(f"🔌 Connection Error: impossibile raggiungere il server FastAPI su `{API_URL}`. Dettagli: {e}")
 
-
-# ============================================================
-# OUTPUT
-# ============================================================
-if "emotion_result" in st.session_state:
-    result = st.session_state["emotion_result"]
-
-    st.markdown("---")
-    st.markdown(
-        '<div class="section-title">📊 ANALYSIS OUTPUT</div>',
-        unsafe_allow_html=True,
-    )
-
-    st.markdown('<div class="result-card">', unsafe_allow_html=True)
-
-    emotion = result.get("emotion", "neutral").upper()
-    confidence = result.get("confidence", 0)
-    image_emotion = str(result.get("image_emotion", "neutral")).upper()
-    text_emotion = str(result.get("text_emotion", "neutral")).upper()
-    agreement = str(result.get("modality_agreement", "medium")).upper()
-    explanation = result.get("explanation", "No explanation returned.")
-
-    st.markdown("### Dominant emotion")
-    st.markdown(f'<div class="emotion">{emotion}</div>', unsafe_allow_html=True)
-
-    st.write("")
-
-    m1, m2, m3, m4 = st.columns(4)
-
-    with m1:
-        st.markdown(
-            f"""
-            <div class="metric-box">
-                <div class="metric-value">{confidence:.0f}%</div>
-                <div class="metric-label">CONFIDENCE</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    with m2:
-        st.markdown(
-            f"""
-            <div class="metric-box">
-                <div class="metric-value">{image_emotion}</div>
-                <div class="metric-label">IMAGE SIGNAL</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    with m3:
-        st.markdown(
-            f"""
-            <div class="metric-box">
-                <div class="metric-value">{text_emotion}</div>
-                <div class="metric-label">TEXT SIGNAL</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    with m4:
-        st.markdown(
-            f"""
-            <div class="metric-box">
-                <div class="metric-value">{agreement}</div>
-                <div class="metric-label">MODALITY AGREEMENT</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    st.write("")
-    st.markdown("#### Interpretation")
-    st.write(explanation)
-
-    with st.expander("View raw model output"):
-        st.json(result)
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
-# ============================================================
-# FOOTER
-# ============================================================
-st.markdown(
-    """
-<div style="text-align:center; color:#64748b; padding:30px 0 10px 0;">
-    <div style="font-weight:700;">EMOTIA · Multimodal Emotion Recognition</div>
-    <div style="font-size:.8rem; margin-top:6px;">
-        Research / educational prototype · Emotion prediction is probabilistic.
-    </div>
+# ================= FOOTER =================
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center; color: #64748b; padding: 20px;'>
+    <p><strong>EMOTIS — Multimodal Emotion Recognition System</strong></p>
+    <p>Powered by BEiT-3 + OT-CP+ Adaptive Optimal Transport Conformal Prediction</p>
 </div>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
