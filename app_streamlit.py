@@ -4,7 +4,7 @@ import base64
 
 # ================= PAGE CONFIG =================
 st.set_page_config(
-    page_title="EMOTIS | Multimodal Emotion Recognition",
+    page_title="Emotion Recognition | Multimodal BEiT-3",
     page_icon="🎭",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -74,8 +74,8 @@ st.markdown("""
     .stTextArea textarea { background: rgba(255,255,255,0.05) !important; border: 1px solid rgba(0, 242, 254, 0.3) !important; border-radius: 16px !important; color: #e2e8f0 !important; font-size: 1.05rem !important; }
     .stTextArea textarea:focus { border-color: var(--primary) !important; box-shadow: 0 0 15px rgba(0, 242, 254, 0.3) !important; }
 
-    .scanner-container { position: relative; overflow: hidden; border-radius: 20px; border: 2px solid var(--primary); background: linear-gradient(45deg, rgba(0, 242, 254, 0.1) 0%, transparent 50%); }
-    .scan-line { position: absolute; width: 100%; height: 6px; background: linear-gradient(90deg, transparent, var(--primary), var(--neon-pink), transparent); box-shadow: 0 0 20px var(--primary), 0 0 40px var(--neon-pink); opacity: 0.8; animation: scanline 1.5s linear infinite; z-index: 10; }
+    .image-preview-frame { position: relative; overflow: hidden; border-radius: 20px; border: 1px solid rgba(0, 242, 254, 0.4); box-shadow: 0 0 25px rgba(0, 242, 254, 0.15), inset 0 0 20px rgba(0, 242, 254, 0.05); transition: all 0.3s ease; }
+    .image-preview-frame:hover { border-color: var(--primary); box-shadow: 0 0 35px rgba(0, 242, 254, 0.25); }
 
     [data-testid="stSidebar"] { background: rgba(10, 10, 18, 0.9) !important; backdrop-filter: blur(20px) !important; border-right: 1px solid rgba(0, 242, 254, 0.2) !important; }
 
@@ -177,13 +177,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ================= HEADER =================
-st.markdown('<div class="hero-title floating">🎭 EMOTIS</div>', unsafe_allow_html=True)
+st.markdown('<div class="hero-title floating">🎭 EMOTION RECOGNITION</div>', unsafe_allow_html=True)
 st.markdown(
-    '<div class="hero-subtitle">Multimodal Emotion Recognition · BEiT-3 · OT-CP+ Conformal Prediction</div>',
+    '<div class="hero-subtitle">BEiT-3 and Uncertainty Quantification via Adaptive OTCP+</div>',
     unsafe_allow_html=True
 )
-
-st.markdown('<div class="glass-card slide-in">', unsafe_allow_html=True)
 
 col_left, col_right = st.columns([1, 1], gap="large")
 
@@ -203,19 +201,16 @@ with col_right:
     if uploaded_file:
         img_b64 = base64.b64encode(uploaded_file.getvalue()).decode("utf-8")
         st.markdown(f"""
-            <div class="scanner-container">
-                <div class="scan-line"></div>
+            <div class="image-preview-frame">
                 <img src="data:{uploaded_file.type};base64,{img_b64}"
-                     width="100%" style="border-radius: 18px; display: block; opacity: 0.95;">
+                     width="100%" style="border-radius: 18px; display: block;">
             </div>
         """, unsafe_allow_html=True)
     else:
         st.info("Nessuna immagine caricata. Carica un'immagine per visualizzare l'anteprima.")
 
 st.markdown("<br>", unsafe_allow_html=True)
-analyze_btn = st.button("🚀 Analyze Contents and Predict Results", type="primary", use_container_width=True)
-
-st.markdown('</div>', unsafe_allow_html=True)  # chiude glass-card input
+analyze_btn = st.button("Analyse Contents and Predict Emotion", type="primary", use_container_width=True)
 
 # ================= API ENDPOINT =================
 API_URL = "https://writing-makes-counting-missouri.trycloudflare.com"
@@ -241,8 +236,7 @@ if analyze_btn:
                     result = response.json()
 
                     st.markdown("<br>", unsafe_allow_html=True)
-                    st.markdown('<div class="glass-card slide-in">', unsafe_allow_html=True)
-                    st.markdown('<div class="section-header">📊 Prediction Results</div>', unsafe_allow_html=True)
+                    st.markdown('<div class="section-header">Prediction Results</div>', unsafe_allow_html=True)
 
                     res_col1, res_col2 = st.columns(2, gap="medium")
 
@@ -276,8 +270,6 @@ if analyze_btn:
                         </div>
                     """, unsafe_allow_html=True)
 
-                    st.markdown('</div>', unsafe_allow_html=True)  # chiude glass-card risultati
-
                 else:
                     st.error(f"❌ API Error ({response.status_code}): {response.text}")
 
@@ -288,7 +280,7 @@ if analyze_btn:
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #64748b; padding: 20px;'>
-    <p><strong>EMOTIS — Multimodal Emotion Recognition System</strong></p>
+    <p><strong>Emotion Recognition — Multimodal System</strong></p>
     <p>Powered by BEiT-3 + OT-CP+ Adaptive Optimal Transport Conformal Prediction</p>
 </div>
 """, unsafe_allow_html=True)
