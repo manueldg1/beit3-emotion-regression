@@ -1,4 +1,4 @@
 streamlit
-requests
-Pillow
-plotly
+torch
+transformers
+tensorflow
