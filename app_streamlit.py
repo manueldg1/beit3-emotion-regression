@@ -50,7 +50,18 @@ st.markdown("""
     .slide-in { animation: slideIn 0.6s ease-out; }
 
     .hero-title { font-size: 5rem; font-weight: 900; letter-spacing: -3px; background: linear-gradient(135deg, var(--primary) 0%, var(--neon-pink) 50%, var(--primary-dark) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0 0 30px rgba(0, 242, 254, 0.5), 0 0 60px rgba(0, 242, 254, 0.3); margin-bottom: 0; text-align: center; }
-    .hero-subtitle { font-size: 1.8rem; color: #94a3b8; letter-spacing: 6px; text-transform: uppercase; margin-bottom: 3rem; text-align: center; }
+    .hero-subtitle {
+        font-size: 1.8rem;
+        font-weight: 800;
+        letter-spacing: 4px;
+        text-transform: uppercase;
+        margin-bottom: 3rem;
+        text-align: center;
+        background: linear-gradient(135deg, var(--primary) 0%, var(--neon-pink) 50%, var(--primary-dark) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-shadow: 0 0 20px rgba(0, 242, 254, 0.35);
+    }
 
     .section-header { font-size: 1.5rem !important; font-weight: 700 !important; color: #e2e8f0; margin-top: 1rem; margin-bottom: 0.8rem; letter-spacing: 1px; text-transform: uppercase; }
 
@@ -156,7 +167,7 @@ st.markdown("""
     @media only screen and (max-width: 768px) {
         .block-container { padding-left: 1rem !important; padding-right: 1rem !important; }
         .hero-title { font-size: 3rem !important; }
-        .hero-subtitle { font-size: 1.1rem !important; letter-spacing: 3px !important; }
+        .hero-subtitle { font-size: 1.1rem !important; letter-spacing: 2px !important; }
         .glass-card { padding: 15px !important; }
         [data-testid="column"] { width: 100% !important; flex: 1 1 auto !important; min-width: auto !important; }
         .metric-value { font-size: 2.2rem !important; }
@@ -177,7 +188,7 @@ st.markdown('<div class="glass-card slide-in">', unsafe_allow_html=True)
 col_left, col_right = st.columns([1, 1], gap="large")
 
 with col_left:
-    st.markdown('<div class="section-header">📥 Input Data</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">Input Data</div>', unsafe_allow_html=True)
     user_text = st.text_area(
         "Text content:",
         placeholder="Scrivi qui un messaggio o una frase...",
@@ -188,7 +199,7 @@ with col_left:
     st.markdown('</div>', unsafe_allow_html=True)
 
 with col_right:
-    st.markdown('<div class="section-header">🖼️ Image Preview</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">Image Preview</div>', unsafe_allow_html=True)
     if uploaded_file:
         img_b64 = base64.b64encode(uploaded_file.getvalue()).decode("utf-8")
         st.markdown(f"""
