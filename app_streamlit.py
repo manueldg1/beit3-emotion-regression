@@ -281,6 +281,7 @@ st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #64748b; padding: 20px;'>
     <p><strong>Emotion Recognition — Multimodal System</strong></p>
-    <p>Powered by BEiT-3 + OT-CP+ Adaptive Optimal Transport Conformal Prediction</p>
+    <p>BEiT-3 Made Multilingual via the VecMap Framework + Uncertainty Quantification with Optimal Transport-Based Conformal Prediction</p>
+    <p><a href="https://github.com/manueldg1" target="_blank" style="color:#00f2fe; text-decoration:none; font-weight:600;">github.com/manueldg1</a></p>
 </div>
 """, unsafe_allow_html=True)
