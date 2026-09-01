@@ -68,12 +68,15 @@ st.markdown("""
     .glass-card { background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%); backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 24px; padding: 30px; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.2); transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1); }
     .glass-card:hover { transform: translateY(-8px) scale(1.02); border-color: var(--primary); box-shadow: 0 15px 40px 0 rgba(0, 242, 254, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
 
-    .stButton>button { background: linear-gradient(135deg, var(--primary) 0%, var(--neon-pink) 50%, var(--primary-dark) 100%) !important; color: #0f172a !important; border: none !important; font-weight: 800 !important; padding: 1rem 2.5rem !important; letter-spacing: 2px !important; text-transform: uppercase !important; border-radius: 50px !important; transition: all 0.3s ease !important; box-shadow: 0 5px 15px rgba(0, 242, 254, 0.3) !important; }
+    .stButton>button { background: linear-gradient(135deg, var(--primary) 0%, var(--neon-pink) 50%, var(--primary-dark) 100%) !important; color: #ffffff !important; border: none !important; font-weight: 900 !important; padding: 1rem 2.5rem !important; letter-spacing: 2px !important; text-transform: uppercase !important; border-radius: 50px !important; transition: all 0.3s ease !important; box-shadow: 0 5px 15px rgba(0, 242, 254, 0.3) !important; text-shadow: 0 1px 3px rgba(0,0,0,0.4) !important; }
     .stButton>button:hover { transform: translateY(-3px) scale(1.05) !important; box-shadow: 0 10px 25px rgba(0, 242, 254, 0.5), 0 0 30px rgba(0, 242, 254, 0.3) !important; letter-spacing: 3px !important; }
 
     .stTextArea textarea { background: rgba(255,255,255,0.05) !important; border: 1px solid rgba(0, 242, 254, 0.3) !important; border-radius: 16px !important; color: #000000 !important; font-size: 1.05rem !important; }
     .stTextArea textarea::placeholder { color: #334155 !important; opacity: 1 !important; }
     .stTextArea textarea:focus { border-color: var(--primary) !important; box-shadow: 0 0 15px rgba(0, 242, 254, 0.3) !important; }
+
+    div[data-testid="stAlert"] { background: rgba(20, 20, 40, 0.8) !important; border: 1px solid rgba(0, 242, 254, 0.3) !important; border-radius: 16px !important; }
+    div[data-testid="stAlert"] * { color: #ffffff !important; }
 
     .image-preview-frame { position: relative; overflow: hidden; border-radius: 20px; border: 1px solid rgba(0, 242, 254, 0.4); box-shadow: 0 0 25px rgba(0, 242, 254, 0.15), inset 0 0 20px rgba(0, 242, 254, 0.05); transition: all 0.3s ease; }
     .image-preview-frame:hover { border-color: var(--primary); box-shadow: 0 0 35px rgba(0, 242, 254, 0.25); }
@@ -88,6 +91,7 @@ st.markdown("""
         padding: 30px;
         transition: all 0.3s ease;
         text-align: center;
+        color: #000000;
     }
     .custom-upload-wrapper [data-testid='stFileUploader'] section:hover {
         background-color: rgba(0, 242, 254, 0.1);
