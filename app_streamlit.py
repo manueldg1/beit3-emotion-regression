@@ -10,7 +10,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ================= MAIN APP CSS (stessa identica identità grafica di app (1).py) =================
+# ================= MAIN APP CSS (same visual identity as app (1).py) =================
 st.markdown("""
 <style>
     :root {
@@ -189,7 +189,7 @@ with col_left:
     st.markdown('<div class="section-header">Input Data</div>', unsafe_allow_html=True)
     user_text = st.text_area(
         "Text content:",
-        placeholder="Scrivi qui un messaggio o una frase...",
+        placeholder="Type a message or sentence here...",
         height=140
     )
     st.markdown('<div class="custom-upload-wrapper">', unsafe_allow_html=True)
@@ -207,18 +207,18 @@ with col_right:
             </div>
         """, unsafe_allow_html=True)
     else:
-        st.info("Nessuna immagine caricata. Carica un'immagine per visualizzare l'anteprima.")
+        st.info("No image uploaded yet. Upload an image to view the preview.")
 
 st.markdown("<br>", unsafe_allow_html=True)
 analyze_btn = st.button("Analyse Contents and Predict Emotion", type="primary", use_container_width=True)
 
 # ================= API ENDPOINT =================
-API_URL = "https://writing-makes-counting-missouri.trycloudflare.com/predict"
+API_URL = "https://writing-makes-counting-missouri.trycloudflare.com"
 
 # ================= ACTION LOGIC =================
 if analyze_btn:
     if not user_text and not uploaded_file:
-        st.error("⚠️ Fornisci almeno un testo o un'immagine per eseguire la predizione.")
+        st.error("⚠️ Please provide at least a text snippet or an image to run the prediction.")
     else:
         files = {}
         data = {}
@@ -228,7 +228,7 @@ if analyze_btn:
         if user_text:
             data['text'] = user_text
 
-        with st.spinner("Elaborazione della rappresentazione multimodale in corso..."):
+        with st.spinner("Processing multimodal representation..."):
             try:
                 response = requests.post(API_URL, data=data, files=files if files else None)
 
@@ -274,6 +274,19 @@ if analyze_btn:
                     st.error(f"❌ API Error ({response.status_code}): {response.text}")
 
             except Exception as e:
-                st.error(f"🔌 Connection Error: impossibile raggiungere il server FastAPI su `{API_URL}`. Dettagli: {e}")
+                st.error(f"🔌 Connection Error: could not reach the FastAPI server at `{API_URL}`. Details: {e}")
 
-Questo sistema è stato sviluppato esclusivamente a fini di ricerca accademica (tesi di laurea). Non è destinato all'uso in contesti di selezione del personale, valutazione psicologica, sorveglianza o qualsiasi altra decisione che riguardi persone reali. Le previsioni non sono cliniche né validate per un uso in produzione.
+# ================= FOOTER =================
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center; color: #64748b; padding: 20px;'>
+    <p><strong>Emotion Recognition — Multimodal System</strong></p>
+    <p>BEiT-3 Made Multilingual via the VecMap Framework + Uncertainty Quantification with Optimal Transport-Based Conformal Prediction</p>
+    <p><a href="https://github.com/manueldg1" target="_blank" style="color:#00f2fe; text-decoration:none; font-weight:600;">github.com/manueldg1</a></p>
+    <p style="font-size: 0.85rem; color: #94a3b8; max-width: 700px; margin: 12px auto 0 auto; line-height: 1.5;">
+        This system was developed exclusively for academic research purposes (Master's thesis).
+        It is not intended for use in personnel selection, psychological assessment, surveillance,
+        or any other decision-making process involving real individuals.
+    </p>
+</div>
+""", unsafe_allow_html=True)
