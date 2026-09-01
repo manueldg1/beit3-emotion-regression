@@ -213,7 +213,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 analyze_btn = st.button("Analyse Contents and Predict Emotion", type="primary", use_container_width=True)
 
 # ================= API ENDPOINT =================
-API_URL = "https://writing-makes-counting-missouri.trycloudflare.com"
+API_URL = "https://writing-makes-counting-missouri.trycloudflare.com/predict"
 
 # ================= ACTION LOGIC =================
 if analyze_btn:
