@@ -71,7 +71,8 @@ st.markdown("""
     .stButton>button { background: linear-gradient(135deg, var(--primary) 0%, var(--neon-pink) 50%, var(--primary-dark) 100%) !important; color: #0f172a !important; border: none !important; font-weight: 800 !important; padding: 1rem 2.5rem !important; letter-spacing: 2px !important; text-transform: uppercase !important; border-radius: 50px !important; transition: all 0.3s ease !important; box-shadow: 0 5px 15px rgba(0, 242, 254, 0.3) !important; }
     .stButton>button:hover { transform: translateY(-3px) scale(1.05) !important; box-shadow: 0 10px 25px rgba(0, 242, 254, 0.5), 0 0 30px rgba(0, 242, 254, 0.3) !important; letter-spacing: 3px !important; }
 
-    .stTextArea textarea { background: rgba(255,255,255,0.05) !important; border: 1px solid rgba(0, 242, 254, 0.3) !important; border-radius: 16px !important; color: #e2e8f0 !important; font-size: 1.05rem !important; }
+    .stTextArea textarea { background: rgba(255,255,255,0.05) !important; border: 1px solid rgba(0, 242, 254, 0.3) !important; border-radius: 16px !important; color: #000000 !important; font-size: 1.05rem !important; }
+    .stTextArea textarea::placeholder { color: #334155 !important; opacity: 1 !important; }
     .stTextArea textarea:focus { border-color: var(--primary) !important; box-shadow: 0 0 15px rgba(0, 242, 254, 0.3) !important; }
 
     .image-preview-frame { position: relative; overflow: hidden; border-radius: 20px; border: 1px solid rgba(0, 242, 254, 0.4); box-shadow: 0 0 25px rgba(0, 242, 254, 0.15), inset 0 0 20px rgba(0, 242, 254, 0.05); transition: all 0.3s ease; }
@@ -115,6 +116,10 @@ st.markdown("""
         color: var(--primary) !important;
         font-family: 'Courier New', monospace !important;
         font-weight: bold !important;
+    }
+    .custom-upload-wrapper [data-testid='stFileUploader'] section small {
+        color: #000000 !important;
+        opacity: 1 !important;
     }
 
     /* ---- Metric cards (Valence / Arousal) ---- */
@@ -213,7 +218,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 analyze_btn = st.button("Analyse Contents and Predict Emotion", type="primary", use_container_width=True)
 
 # ================= API ENDPOINT =================
-API_URL = "https://writing-makes-counting-missouri.trycloudflare.com/predict"
+API_URL = "https://writing-makes-counting-missouri.trycloudflare.com"
 
 # ================= ACTION LOGIC =================
 if analyze_btn:
