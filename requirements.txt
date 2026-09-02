@@ -8,6 +8,7 @@ transformers==4.40.0
 sentencepiece==0.2.0
 timm==0.4.12
 torchscale==0.2.0
+torchmetrics==1.3.2
 
 # CPU-only PyTorch build (much smaller image, no CUDA needed on Cloud Run).
 # If you later move to a GPU host, replace these two lines with the
