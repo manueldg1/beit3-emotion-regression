@@ -1,4 +1,3 @@
-
 import streamlit as st
 import requests
 import base64
@@ -132,16 +131,30 @@ st.markdown("""
         height: auto !important;
         opacity: 1 !important;
         background: #ffffff !important;
-        color: var(--accent-dark) !important;
+        color: #000000 !important;
         border: 1px solid var(--accent) !important;
         border-radius: 8px !important;
         padding: 0.45rem 1.3rem !important;
         margin-top: 10px;
         transition: all 0.2s ease !important;
     }
+    .custom-upload-wrapper [data-testid='stFileUploader'] section button p,
+    .custom-upload-wrapper [data-testid='stFileUploader'] section button span,
+    .custom-upload-wrapper [data-testid='stFileUploader'] section button svg {
+        color: #000000 !important;
+        fill: #000000 !important;
+        stroke: #000000 !important;
+    }
     .custom-upload-wrapper [data-testid='stFileUploader'] section button:hover {
         background: var(--accent) !important;
         color: #ffffff !important;
+    }
+    .custom-upload-wrapper [data-testid='stFileUploader'] section button:hover p,
+    .custom-upload-wrapper [data-testid='stFileUploader'] section button:hover span,
+    .custom-upload-wrapper [data-testid='stFileUploader'] section button:hover svg {
+        color: #ffffff !important;
+        fill: #ffffff !important;
+        stroke: #ffffff !important;
     }
     .custom-upload-wrapper [data-testid='stFileUploader'] section > div > div span {
         color: #0F172A !important;
@@ -337,7 +350,7 @@ st.markdown("""
     <p>BEiT-3 Made Multilingual via the VecMap Framework + Uncertainty Quantification with Optimal Transport-Based Conformal Prediction</p>
     <p><a href="https://github.com/manueldg1" target="_blank" style="color:#3B82F6; text-decoration:none; font-weight:600;">github.com/manueldg1</a></p>
     <p style="font-size: 0.85rem; color: #64748B; max-width: 700px; margin: 12px auto 0 auto; line-height: 1.5;">
-        This system was developed exclusively for academic research purposes (Master's thesis).
+        This system was developed exclusively for academic research purposes.
         It is not intended for use in personnel selection, psychological assessment, surveillance,
         or any other decision-making process involving real individuals.
     </p>
