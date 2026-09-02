@@ -1,4 +1,5 @@
-import streamlit as st
+
+ import streamlit as st
 import requests
 import base64
 
@@ -36,9 +37,9 @@ st.markdown("""
     .block-container {padding-top: 1.5rem;}
 
     .hero-title {
-        font-size: 3rem;
-        font-weight: 800;
-        letter-spacing: -1px;
+        font-size: 5rem;
+        font-weight: 900;
+        letter-spacing: -3px;
         color: var(--text-primary);
         text-align: center;
         margin-bottom: 0.4rem;
@@ -46,21 +47,22 @@ st.markdown("""
     .hero-title .accent { color: var(--accent); }
 
     .hero-subtitle {
-        font-size: 1.05rem;
-        font-weight: 500;
-        letter-spacing: 0.5px;
-        color: var(--text-secondary);
-        margin-bottom: 2.8rem;
+        font-size: 1.8rem;
+        font-weight: 800;
+        letter-spacing: 4px;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 3rem;
         text-align: center;
     }
 
     .section-header {
-        font-size: 1.05rem !important;
+        font-size: 1.5rem !important;
         font-weight: 700 !important;
         color: var(--text-primary);
-        margin-top: 0.5rem;
-        margin-bottom: 0.7rem;
-        letter-spacing: 0.5px;
+        margin-top: 1rem;
+        margin-bottom: 0.8rem;
+        letter-spacing: 1px;
         text-transform: uppercase;
         border-left: 3px solid var(--accent);
         padding-left: 10px;
@@ -70,10 +72,11 @@ st.markdown("""
         background: var(--accent) !important;
         color: #ffffff !important;
         border: none !important;
-        font-weight: 600 !important;
-        padding: 0.85rem 2rem !important;
-        letter-spacing: 0.3px !important;
-        border-radius: 8px !important;
+        font-weight: 900 !important;
+        padding: 1rem 2.5rem !important;
+        letter-spacing: 2px !important;
+        text-transform: uppercase !important;
+        border-radius: 50px !important;
         transition: all 0.2s ease !important;
         box-shadow: 0 1px 2px rgba(0,0,0,0.3) !important;
     }
@@ -88,7 +91,7 @@ st.markdown("""
         border: 1px solid var(--border-soft) !important;
         border-radius: 10px !important;
         color: #0F172A !important;
-        font-size: 1rem !important;
+        font-size: 1.05rem !important;
     }
     .stTextArea textarea::placeholder { color: #64748B !important; opacity: 1 !important; }
     .stTextArea textarea:focus { border-color: var(--accent) !important; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important; }
@@ -162,26 +165,26 @@ st.markdown("""
     }
     .metric-card:hover { border-color: var(--accent); transform: translateY(-2px); }
     .metric-label {
-        font-size: 0.8rem !important;
+        font-size: 1.2rem !important;
         font-weight: 700;
         color: var(--text-secondary);
         text-transform: uppercase;
-        letter-spacing: 1.5px;
-        margin-bottom: 0.5rem;
+        letter-spacing: 2px;
+        margin-bottom: 0.6rem;
     }
     .metric-value {
-        font-size: 2.4rem !important;
-        font-weight: 800;
+        font-size: 3rem !important;
+        font-weight: 900;
         color: var(--text-primary);
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.6rem;
     }
     .metric-interval {
-        font-size: 0.85rem !important;
+        font-size: 1rem !important;
         font-weight: 600;
         color: var(--accent);
         background-color: rgba(59, 130, 246, 0.1);
         border: 1px solid rgba(59, 130, 246, 0.3);
-        padding: 5px 14px;
+        padding: 6px 16px;
         border-radius: 20px;
         display: inline-block;
     }
@@ -198,16 +201,17 @@ st.markdown("""
         margin-top: 1.8rem;
     }
     .emotion-banner-title {
-        font-size: 0.85rem;
+        font-size: 1.1rem;
         font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 1.5px;
+        letter-spacing: 3px;
         color: var(--text-secondary);
     }
     .emotion-banner-value {
-        font-size: 2.2rem !important;
-        font-weight: 800;
-        margin-top: 0.4rem;
+        font-size: 3.2rem !important;
+        font-weight: 900;
+        margin-top: 0.5rem;
+        letter-spacing: 1px;
         color: var(--accent);
     }
 
@@ -216,11 +220,11 @@ st.markdown("""
     /* --- MOBILE RESPONSIVENESS --- */
     @media only screen and (max-width: 768px) {
         .block-container { padding-left: 1rem !important; padding-right: 1rem !important; }
-        .hero-title { font-size: 2rem !important; }
-        .hero-subtitle { font-size: 0.9rem !important; }
+        .hero-title { font-size: 3rem !important; }
+        .hero-subtitle { font-size: 1.1rem !important; letter-spacing: 2px !important; }
         [data-testid="column"] { width: 100% !important; flex: 1 1 auto !important; min-width: auto !important; }
-        .metric-value { font-size: 1.9rem !important; }
-        .emotion-banner-value { font-size: 1.9rem !important; }
+        .metric-value { font-size: 2.2rem !important; }
+        .emotion-banner-value { font-size: 2.2rem !important; }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -262,7 +266,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 analyze_btn = st.button("Analyse Contents and Predict Emotion", type="primary", use_container_width=True)
 
 # ================= API ENDPOINT =================
-API_URL = "https://writing-makes-counting-missouri.trycloudflare.com"
+API_URL = "https://writing-makes-counting-missouri.trycloudflare.com/predict"
 
 # ================= ACTION LOGIC =================
 if analyze_btn:
