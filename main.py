@@ -7,7 +7,6 @@ import torch
 import numpy as np
 from PIL import Image
 from typing import Optional, Tuple
-from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from pydantic import BaseModel
@@ -26,7 +25,7 @@ from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 from transformers import XLMRobertaTokenizer
 
 # ------------------------------------------------------------------------------
-# CONFIGURAZIONE AMBIENTE E VARIABILI GLOBALI
+# 1. CARICAMENTO MODELLO BEiT-3 LARGE
 # ------------------------------------------------------------------------------
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -34,80 +33,58 @@ HF_REPO_ID = os.getenv("HF_CHECKPOINT_REPO", "manueldg1/beit3-valence-arousal")
 HF_FILENAME = os.getenv("HF_CHECKPOINT_FILENAME", "model_only_fp16.pth")
 HF_TOKEN = os.getenv("HF_TOKEN")
 
-# Variabili che verranno popolate all'avvio nel lifespan
-model = None
-tokenizer = None
-transform_image = None
+print(f"Downloading checkpoint from Hugging Face Hub: {HF_REPO_ID}/{HF_FILENAME} ...")
+CHECKPOINT_PATH = hf_hub_download(
+    repo_id=HF_REPO_ID,
+    filename=HF_FILENAME,
+    token=HF_TOKEN,
+)
+print(f"Checkpoint cached locally at: {CHECKPOINT_PATH}")
 
-# ------------------------------------------------------------------------------
-# LIFESPAN: CARICA IL MODELLO DOPO CHE UVICORN È PARTITO
-# ------------------------------------------------------------------------------
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global model, tokenizer, transform_image
-    
-    print("Inizializzazione Tokenizer e Trasformazioni...")
-    tokenizer = XLMRobertaTokenizer.from_pretrained("xlm-roberta-base")
-    transform_image = transforms.Compose([
-        transforms.Resize((480, 480), interpolation=InterpolationMode.BICUBIC),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=IMAGENET_DEFAULT_MEAN, std=IMAGENET_DEFAULT_STD),
-    ])
+# Load Tokenizer
+tokenizer = XLMRobertaTokenizer.from_pretrained("xlm-roberta-base")
 
-    print(f"Download checkpoint da Hugging Face Hub: {HF_REPO_ID}/{HF_FILENAME} ...")
-    try:
-        checkpoint_path = hf_hub_download(
-            repo_id=HF_REPO_ID,
-            filename=HF_FILENAME,
-            token=HF_TOKEN,
-        )
-        print(f"Checkpoint salvato in cache: {checkpoint_path}")
+# Image preprocessing (480x480 pixels, bicubic interpolation)
+transform_image = transforms.Compose([
+    transforms.Resize((480, 480), interpolation=InterpolationMode.BICUBIC),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=IMAGENET_DEFAULT_MEAN, std=IMAGENET_DEFAULT_STD),
+])
 
-        print(f"Caricamento BEiT-3 Large sul dispositivo: {device}...")
-        model_instance = modeling_finetune.beit3_large_patch16_480_valence_arousal(
-            vocab_size=250002,
-            nb_classes=2,
-            drop_path_rate=0.0
-        )
-
-        try:
-            checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
-        except Exception:
-            checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
-
-        state_dict = checkpoint.get("model", checkpoint.get("state_dict", checkpoint))
-        model_instance.load_state_dict(state_dict)
-
-        if device.type == "cpu":
-            model_instance = model_instance.float()
-        else:
-            model_instance = model_instance.half()
-
-        model_instance.to(device)
-        model_instance.eval()
-        
-        model = model_instance
-        print(">>> MODELLO BEiT-3 CARICATO CON SUCCESSO! <<<")
-    except Exception as e:
-        print(f"[ERRORE CRITICO] Impossibile caricare il modello: {e}")
-        model = None
-
-    yield
-
-# ------------------------------------------------------------------------------
-# FASTAPI APP
-# ------------------------------------------------------------------------------
-app = FastAPI(
-    title="BEiT-3 Multimodal Emotion Recognition & OT-CP+ API",
-    description="API per stima continua Valence/Arousal ed intervalli OT-CP+.",
-    lifespan=lifespan
+print(f"Loading BEiT-3 Large on device: {device}...")
+model = modeling_finetune.beit3_large_patch16_480_valence_arousal(
+    vocab_size=250002,
+    nb_classes=2,
+    drop_path_rate=0.0
 )
 
+try:
+    try:
+        checkpoint = torch.load(CHECKPOINT_PATH, map_location="cpu", weights_only=True)
+    except Exception:
+        checkpoint = torch.load(CHECKPOINT_PATH, map_location="cpu", weights_only=False)
+
+    state_dict = checkpoint.get("model", checkpoint.get("state_dict", checkpoint))
+    model.load_state_dict(state_dict)
+
+    if device.type == "cpu":
+        model = model.float()
+    else:
+        model = model.half()
+
+    model.to(device)
+    model.eval()
+    print(f"BEiT-3 Checkpoint ({CHECKPOINT_PATH}) loaded successfully!")
+except Exception as e:
+    print(f"[ERROR] Failed to load checkpoint: {e}")
+    model = None
+
 # ------------------------------------------------------------------------------
-# VALORI DI CALIBRAZIONE OTCP+ E MODELLI PYDANTIC
+# 2. VALORI DI CALIBRAZIONE OTCP+ E MODELLI PYDANTIC
 # ------------------------------------------------------------------------------
 CALIB_Q_V = 0.1842
 CALIB_Q_A = 0.1521
+
 
 class Interval_VA_Values(BaseModel):
     Valence: float
@@ -116,6 +93,9 @@ class Interval_VA_Values(BaseModel):
     Valence_Interval: Tuple[float, float]
     Arousal_Interval: Tuple[float, float]
 
+# ------------------------------------------------------------------------------
+# 3. FUNZIONI AUSILIARIE (MAPPA EMOZIONI & CALCOLO INTERVALLI OTCP+)
+# ------------------------------------------------------------------------------
 VAD_MAPPING = {
     'Amusement':   {'Valence': 0.858,  'Arousal': 0.674},
     'Anger':       {'Valence': -0.666, 'Arousal': 0.730},
@@ -144,6 +124,7 @@ def map_va_to_nrc_v2_emotion(valence: float, arousal: float, threshold: float = 
 
     return closest_emotion
 
+
 def compute_otcp_intervals(v_pred: float, a_pred: float) -> Tuple[Tuple[float, float], Tuple[float, float]]:
     v_min = max(-1.0, v_pred - CALIB_Q_V)
     v_max = min(1.0, v_pred + CALIB_Q_V)
@@ -152,15 +133,13 @@ def compute_otcp_intervals(v_pred: float, a_pred: float) -> Tuple[Tuple[float, f
     return (round(v_min, 4), round(v_max, 4)), (round(a_min, 4), round(a_max, 4))
 
 # ------------------------------------------------------------------------------
-# ENDPOINTS
+# 4. FASTAPI APP & ENDPOINT POST
 # ------------------------------------------------------------------------------
-@app.get("/")
-def health_check():
-    """Endpoint per l'health check di Google Cloud Run."""
-    return {
-        "status": "online",
-        "model_loaded": model is not None
-    }
+app = FastAPI(
+    title="BEiT-3 Multimodal Emotion Recognition & OT-CP+ API",
+    description="API for continuous Valence/Arousal estimation and OT-CP+ intervals."
+)
+
 
 @app.post("/predict", response_model=Interval_VA_Values)
 async def predict(
@@ -168,21 +147,24 @@ async def predict(
     text: Optional[str] = Form(None)
 ) -> Interval_VA_Values:
 
-    if not image and not text:
+    has_image = image is not None and image.filename != ""
+    has_text = text is not None and text.strip() != ""
+
+    if not has_image and not has_text:
         raise HTTPException(
             status_code=400,
-            detail="Invia almeno un testo o un'immagine per l'inferenza."
+            detail="Send at least text or an image for inference."
         )
 
     if model is None:
         raise HTTPException(
-            status_code=503,
-            detail="Il modello BEiT-3 si sta ancora caricando in memoria o ha riscontrato un errore."
+            status_code=500,
+            detail="BEiT-3 model was not loaded properly at startup."
         )
 
-    # 1. Processamento Immagine
+    # 1. Processing Immagine
     image_tensor = None
-    if image is not None:
+    if has_image:
         try:
             contents = await image.read()
             pil_image = Image.open(io.BytesIO(contents)).convert("RGB")
@@ -194,15 +176,15 @@ async def predict(
         except Exception:
             raise HTTPException(
                 status_code=400,
-                detail="Impossibile elaborare l'immagine caricata."
+                detail="Unable to process the provided image file."
             )
 
-    # 2. Processamento Testo
+    # 2. Processing Testo
     text_tokens = None
     padding_mask = None
-    if text is not None and text.strip():
+    if has_text:
         tokens = tokenizer(
-            text,
+            text.strip(),
             padding="max_length",
             max_length=128,
             truncation=True,
@@ -211,14 +193,27 @@ async def predict(
         text_tokens = tokens["input_ids"].to(device)
         padding_mask = (tokens["attention_mask"] == 0).to(device)
 
-    # 3. Inferenza Modello
+    # 3. Inferenza condizionale senza passare mai 'None' per le modalità assenti
     try:
         with torch.no_grad():
-            outputs = model(
-                image=image_tensor,
-                text_segment=text_tokens,
-                padding_mask=padding_mask
-            )
+            if has_text and not has_image:
+                # SOLO TESTO: passa esclusivamente text_segment e padding_mask
+                outputs = model(
+                    text_segment=text_tokens,
+                    padding_mask=padding_mask
+                )
+            elif has_image and not has_text:
+                # SOLO IMMAGINE: passa esclusivamente image
+                outputs = model(
+                    image=image_tensor
+                )
+            else:
+                # MULTIMODALE: passa sia image che testo
+                outputs = model(
+                    image=image_tensor,
+                    text_segment=text_tokens,
+                    padding_mask=padding_mask
+                )
 
             if isinstance(outputs, (tuple, list)):
                 outputs = outputs[0]
@@ -227,12 +222,14 @@ async def predict(
             a_pred = float(outputs[0, 1].item())
 
     except Exception as e:
+        import traceback
+        print(f"[ERROR INFERENCE]: {traceback.format_exc()}")
         raise HTTPException(
             status_code=500,
-            detail=f"Errore durante l'inferenza del modello BEiT-3: {e}"
+            detail=f"Inference error in BEiT-3 model: {e}"
         )
 
-    # 4. Calcolo intervalli OTCP+ ed Emozione
+    # 4. Calcolo intervalli OTCP+ e Mappatura Emozione
     v_interval, a_interval = compute_otcp_intervals(v_pred, a_pred)
     emotion_label = map_va_to_nrc_v2_emotion(v_pred, a_pred)
 
