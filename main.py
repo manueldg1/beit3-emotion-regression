@@ -24,25 +24,26 @@ from torchvision.transforms import InterpolationMode
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 from transformers import XLMRobertaTokenizer
 
-# Globals initialized at runtime
+# Globals
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = None
 tokenizer = None
 transform_image = None
+is_loading = False
 
-# HF details
 HF_REPO_ID = os.getenv("HF_CHECKPOINT_REPO", "manueldg1/beit3-valence-arousal")
 HF_FILENAME = os.getenv("HF_CHECKPOINT_FILENAME", "model_only_fp16.pth")
 HF_TOKEN = os.getenv("HF_TOKEN")
 
 
-# ------------------------------------------------------------------------------
-# 1. LIFESPAN EVENT (Prevents Cloud Run Health Check Timeout)
-# ------------------------------------------------------------------------------
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global model, tokenizer, transform_image
-    print(f"Starting server... Loading resources on device: {device}")
+def load_beit3_model():
+    """Helper function to load the tokenizer and model state."""
+    global model, tokenizer, transform_image, is_loading
+    if model is not None or is_loading:
+        return
+
+    is_loading = True
+    print(f"Initializing BEiT-3 components on device: {device}...")
 
     # Load Tokenizer & Transforms
     tokenizer = XLMRobertaTokenizer.from_pretrained("xlm-roberta-base")
@@ -52,7 +53,6 @@ async def lifespan(app: FastAPI):
         transforms.Normalize(mean=IMAGENET_DEFAULT_MEAN, std=IMAGENET_DEFAULT_STD),
     ])
 
-    # Download Checkpoint
     try:
         print(f"Downloading checkpoint from Hugging Face Hub: {HF_REPO_ID}/{HF_FILENAME} ...")
         checkpoint_path = hf_hub_download(
@@ -88,21 +88,18 @@ async def lifespan(app: FastAPI):
         print(">>> BEiT-3 MODEL LOADED SUCCESSFULLY! <<<")
     except Exception as e:
         print(f"[CRITICAL ERROR] Failed to load model checkpoint: {e}")
+    finally:
+        is_loading = False
 
-    yield
-    print("Shutting down application...")
 
-
-# Initialize FastAPI with lifespan
+# Initialize FastAPI App
 app = FastAPI(
     title="BEiT-3 Multimodal Emotion Recognition & OT-CP+ API",
-    description="API for continuous Valence/Arousal estimation and OT-CP+ intervals.",
-    lifespan=lifespan
+    description="API for continuous Valence/Arousal estimation and OT-CP+ intervals."
 )
 
-
 # ------------------------------------------------------------------------------
-# 2. CALIBRATION VALUES & PYDANTIC SCHEMAS
+# CALIBRATION VALUES & SCHEMAS
 # ------------------------------------------------------------------------------
 CALIB_Q_V = 0.1842
 CALIB_Q_A = 0.1521
@@ -117,7 +114,7 @@ class Interval_VA_Values(BaseModel):
 
 
 # ------------------------------------------------------------------------------
-# 3. HELPER FUNCTIONS
+# HELPER FUNCTIONS
 # ------------------------------------------------------------------------------
 VAD_MAPPING = {
     'Amusement':   {'Valence': 0.858,  'Arousal': 0.674},
@@ -158,7 +155,7 @@ def compute_otcp_intervals(v_pred: float, a_pred: float) -> Tuple[Tuple[float, f
 
 
 # ------------------------------------------------------------------------------
-# 4. ENDPOINTS
+# ENDPOINTS
 # ------------------------------------------------------------------------------
 @app.get("/")
 def read_root():
@@ -180,10 +177,14 @@ async def predict(
             detail="Send at least text or an image for inference."
         )
 
+    # Lazy-load model on first request if not already loaded
+    if model is None:
+        load_beit3_model()
+
     if model is None:
         raise HTTPException(
             status_code=503,
-            detail="BEiT-3 model is still loading in background. Please try again in a few seconds."
+            detail="Model failed to load properly or is currently initializing. Try again shortly."
         )
 
     # 1. Processing Image
