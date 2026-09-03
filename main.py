@@ -1,4 +1,3 @@
-# Import dependencies
 import sys
 import os
 import io
@@ -7,37 +6,33 @@ import torch
 import numpy as np
 from PIL import Image
 from typing import Optional, Tuple
-from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from pydantic import BaseModel
 from huggingface_hub import hf_hub_download
 
-# Setup BEiT-3 directory
+# Setup BEiT-3 directory path
 BEIT3_DIR = os.getenv("BEIT3_DIR", "/app/unilm/beit3")
 if BEIT3_DIR not in sys.path:
     sys.path.append(BEIT3_DIR)
 
 import modeling_finetune
-from torchvision import transforms
-from torchvision.transforms import InterpolationMode
-from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
-from transformers import XLMRobertaTokenizer
 
-# Globals
+# Global references initialized to None for immediate container startup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = None
 tokenizer = None
 transform_image = None
 is_loading = False
 
+# Hugging Face Hub parameters
 HF_REPO_ID = os.getenv("HF_CHECKPOINT_REPO", "manueldg1/beit3-valence-arousal")
 HF_FILENAME = os.getenv("HF_CHECKPOINT_FILENAME", "model_only_fp16.pth")
 HF_TOKEN = os.getenv("HF_TOKEN")
 
 
 def load_beit3_model():
-    """Helper function to load the tokenizer and model state."""
+    """Lazy loader to prevent container health check timeouts on startup."""
     global model, tokenizer, transform_image, is_loading
     if model is not None or is_loading:
         return
@@ -45,7 +40,13 @@ def load_beit3_model():
     is_loading = True
     print(f"Initializing BEiT-3 components on device: {device}...")
 
-    # Load Tokenizer & Transforms
+    # Internal imports to avoid blocking server boot
+    from torchvision import transforms
+    from torchvision.transforms import InterpolationMode
+    from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
+    from transformers import XLMRobertaTokenizer
+
+    # Initialize Tokenizer and Preprocessing Transformations
     tokenizer = XLMRobertaTokenizer.from_pretrained("xlm-roberta-base")
     transform_image = transforms.Compose([
         transforms.Resize((480, 480), interpolation=InterpolationMode.BICUBIC),
@@ -62,7 +63,7 @@ def load_beit3_model():
         )
         print(f"Checkpoint cached locally at: {checkpoint_path}")
 
-        # Instantiate Model
+        # Instantiate Model Architecture
         model_instance = modeling_finetune.beit3_large_patch16_480_valence_arousal(
             vocab_size=250002,
             nb_classes=2,
@@ -87,19 +88,19 @@ def load_beit3_model():
         model = model_instance
         print(">>> BEiT-3 MODEL LOADED SUCCESSFULLY! <<<")
     except Exception as e:
-        print(f"[CRITICAL ERROR] Failed to load model checkpoint: {e}")
+        print(f"[CRITICAL ERROR] Failed to load checkpoint: {e}")
     finally:
         is_loading = False
 
 
-# Initialize FastAPI App
+# Initialize FastAPI Application
 app = FastAPI(
     title="BEiT-3 Multimodal Emotion Recognition & OT-CP+ API",
     description="API for continuous Valence/Arousal estimation and OT-CP+ intervals."
 )
 
 # ------------------------------------------------------------------------------
-# CALIBRATION VALUES & SCHEMAS
+# 1. OT-CP+ CALIBRATION VALUES & PYDANTIC MODELS
 # ------------------------------------------------------------------------------
 CALIB_Q_V = 0.1842
 CALIB_Q_A = 0.1521
@@ -114,7 +115,7 @@ class Interval_VA_Values(BaseModel):
 
 
 # ------------------------------------------------------------------------------
-# HELPER FUNCTIONS
+# 2. HELPER FUNCTIONS
 # ------------------------------------------------------------------------------
 VAD_MAPPING = {
     'Amusement':   {'Valence': 0.858,  'Arousal': 0.674},
@@ -129,6 +130,7 @@ VAD_MAPPING = {
 
 
 def map_va_to_nrc_v2_emotion(valence: float, arousal: float, threshold: float = 0.45) -> str:
+    """Maps (V, A) to closest NRC VAD v2 emotion using Euclidean distance."""
     if abs(valence) <= 0.15 and abs(arousal) <= 0.15:
         return "Neutral"
 
@@ -147,6 +149,7 @@ def map_va_to_nrc_v2_emotion(valence: float, arousal: float, threshold: float = 
 
 
 def compute_otcp_intervals(v_pred: float, a_pred: float) -> Tuple[Tuple[float, float], Tuple[float, float]]:
+    """Calculates marginal confidence intervals using OTCP+ quantiles."""
     v_min = max(-1.0, v_pred - CALIB_Q_V)
     v_max = min(1.0, v_pred + CALIB_Q_V)
     a_min = max(-1.0, a_pred - CALIB_Q_A)
@@ -155,7 +158,7 @@ def compute_otcp_intervals(v_pred: float, a_pred: float) -> Tuple[Tuple[float, f
 
 
 # ------------------------------------------------------------------------------
-# ENDPOINTS
+# 3. FASTAPI ENDPOINTS
 # ------------------------------------------------------------------------------
 @app.get("/")
 def read_root():
@@ -177,14 +180,14 @@ async def predict(
             detail="Send at least text or an image for inference."
         )
 
-    # Lazy-load model on first request if not already loaded
+    # Lazy-load model state on the first incoming request
     if model is None:
         load_beit3_model()
 
     if model is None:
         raise HTTPException(
             status_code=503,
-            detail="Model failed to load properly or is currently initializing. Try again shortly."
+            detail="Model is completing initialization. Please try again in a few seconds."
         )
 
     # 1. Processing Image
@@ -215,7 +218,7 @@ async def predict(
         text_tokens = tokens["input_ids"].to(device)
         padding_mask = (tokens["attention_mask"] == 0).to(device)
 
-    # 3. Native Conditional Inference
+    # 3. Native Conditional Inference (Text-Only, Image-Only, or Multimodal)
     try:
         with torch.no_grad():
             if has_text and not has_image:
@@ -233,13 +236,13 @@ async def predict(
 
     except Exception as e:
         import traceback
-        print(f"[ERROR INFERENCE]: {traceback.format_exc()}")
+        print(f"[INFERENCE ERROR]: {traceback.format_exc()}")
         raise HTTPException(
             status_code=500,
             detail=f"Inference error in BEiT-3 model: {e}"
         )
 
-    # 4. Output Formatter
+    # 4. Formulate Results
     v_interval, a_interval = compute_otcp_intervals(v_pred, a_pred)
     emotion_label = map_va_to_nrc_v2_emotion(v_pred, a_pred)
 
