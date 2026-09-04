@@ -1,4 +1,3 @@
-# Import dependencies
 import sys
 import os
 import io
@@ -12,82 +11,96 @@ from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from pydantic import BaseModel
 from huggingface_hub import hf_hub_download
 
-# Setup BEiT-3 directory
-# In the Docker/Cloud Run image this points to the unilm/beit3 folder
-# cloned inside the container (see Dockerfile). Locally on the university
-# cluster it still falls back to the original absolute path if set via env.
+# Setup BEiT-3 directory path
 BEIT3_DIR = os.getenv("BEIT3_DIR", "/app/unilm/beit3")
 if BEIT3_DIR not in sys.path:
     sys.path.append(BEIT3_DIR)
 
-# Import BEiT-3 modules
 import modeling_finetune
-from torchvision import transforms
-from torchvision.transforms import InterpolationMode
-from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
-from transformers import XLMRobertaTokenizer
 
-# ------------------------------------------------------------------------------
-# 1. CARICAMENTO MODELLO BEiT-3 LARGE
-# ------------------------------------------------------------------------------
-# Verify if CUDA GPU is available, fallback to CPU
+# Global references initialized to None for immediate container startup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = None
+tokenizer = None
+transform_image = None
+is_loading = False
 
-# Checkpoint is now fetched from your own Hugging Face Hub model repo
-# instead of a hardcoded university cluster path. Set these via
-# environment variables in Cloud Run (or export them locally for testing).
+# Hugging Face Hub parameters
 HF_REPO_ID = os.getenv("HF_CHECKPOINT_REPO", "manueldg1/beit3-valence-arousal")
 HF_FILENAME = os.getenv("HF_CHECKPOINT_FILENAME", "model_only_fp16.pth")
-HF_TOKEN = os.getenv("HF_TOKEN")  # required only if the HF repo is private
+HF_TOKEN = os.getenv("HF_TOKEN")
 
-print(f"Downloading checkpoint from Hugging Face Hub: {HF_REPO_ID}/{HF_FILENAME} ...")
-CHECKPOINT_PATH = hf_hub_download(
-    repo_id=HF_REPO_ID,
-    filename=HF_FILENAME,
-    token=HF_TOKEN,
-)
-print(f"Checkpoint cached locally at: {CHECKPOINT_PATH}")
 
-# Load Tokenizer
-tokenizer = XLMRobertaTokenizer.from_pretrained("xlm-roberta-base")
+def load_beit3_model():
+    """Lazy loader to prevent container health check timeouts on startup."""
+    global model, tokenizer, transform_image, is_loading
+    if model is not None or is_loading:
+        return
 
-# Image preprocessing (480x480 pixels, bicubic interpolation)
-transform_image = transforms.Compose([
-    transforms.Resize((480, 480), interpolation=InterpolationMode.BICUBIC),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=IMAGENET_DEFAULT_MEAN, std=IMAGENET_DEFAULT_STD),
-])
+    is_loading = True
+    print(f"Initializing BEiT-3 components on device: {device}...")
 
-print(f"Loading BEiT-3 Large on device: {device}...")
-model = modeling_finetune.beit3_large_patch16_480_valence_arousal(
-    vocab_size=250002,
-    nb_classes=2,
-    drop_path_rate=0.0
-)
+    # Internal imports to avoid blocking server boot
+    from torchvision import transforms
+    from torchvision.transforms import InterpolationMode
+    from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
+    from transformers import XLMRobertaTokenizer
 
-try:
+    # Initialize Tokenizer and Preprocessing Transformations
+    tokenizer = XLMRobertaTokenizer.from_pretrained("xlm-roberta-base")
+    transform_image = transforms.Compose([
+        transforms.Resize((480, 480), interpolation=InterpolationMode.BICUBIC),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=IMAGENET_DEFAULT_MEAN, std=IMAGENET_DEFAULT_STD),
+    ])
+
     try:
-        checkpoint = torch.load(CHECKPOINT_PATH, map_location="cpu", weights_only=True)
-    except Exception:
-        checkpoint = torch.load(CHECKPOINT_PATH, map_location="cpu", weights_only=False)
+        print(f"Downloading checkpoint from Hugging Face Hub: {HF_REPO_ID}/{HF_FILENAME} ...")
+        checkpoint_path = hf_hub_download(
+            repo_id=HF_REPO_ID,
+            filename=HF_FILENAME,
+            token=HF_TOKEN,
+        )
+        print(f"Checkpoint cached locally at: {checkpoint_path}")
 
-    state_dict = checkpoint.get("model", checkpoint.get("state_dict", checkpoint))
-    model.load_state_dict(state_dict)
+        # Instantiate Model Architecture
+        model_instance = modeling_finetune.beit3_large_patch16_480_valence_arousal(
+            vocab_size=250002,
+            nb_classes=2,
+            drop_path_rate=0.0
+        )
 
-    if device.type == "cpu":
-        model = model.float()
-    else:
-        model = model.half()
+        try:
+            checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+        except Exception:
+            checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
 
-    model.to(device)
-    model.eval()
-    print(f"BEiT-3 Checkpoint ({CHECKPOINT_PATH}) loaded successfully!")
-except Exception as e:
-    print(f"[ERROR] Failed to load checkpoint: {e}")
-    model = None
+        state_dict = checkpoint.get("model", checkpoint.get("state_dict", checkpoint))
+        model_instance.load_state_dict(state_dict)
+
+        if device.type == "cpu":
+            model_instance = model_instance.float()
+        else:
+            model_instance = model_instance.half()
+
+        model_instance.to(device)
+        model_instance.eval()
+        model = model_instance
+        print(">>> BEiT-3 MODEL LOADED SUCCESSFULLY! <<<")
+    except Exception as e:
+        print(f"[CRITICAL ERROR] Failed to load checkpoint: {e}")
+    finally:
+        is_loading = False
+
+
+# Initialize FastAPI Application
+app = FastAPI(
+    title="BEiT-3 Multimodal Emotion Recognition & OT-CP+ API",
+    description="API for continuous Valence/Arousal estimation and OT-CP+ intervals."
+)
 
 # ------------------------------------------------------------------------------
-# 2. VALORI DI CALIBRAZIONE OTCP+ E MODELLI PYDANTIC
+# 1. OT-CP+ CALIBRATION VALUES & PYDANTIC MODELS
 # ------------------------------------------------------------------------------
 CALIB_Q_V = 0.1842
 CALIB_Q_A = 0.1521
@@ -100,10 +113,10 @@ class Interval_VA_Values(BaseModel):
     Valence_Interval: Tuple[float, float]
     Arousal_Interval: Tuple[float, float]
 
+
 # ------------------------------------------------------------------------------
-# 3. FUNZIONI AUSILIARIE (MAPPA EMOZIONI & CALCOLO INTERVALLI OTCP+)
+# 2. HELPER FUNCTIONS
 # ------------------------------------------------------------------------------
-# NRC VAD v2 Dictionary
 VAD_MAPPING = {
     'Amusement':   {'Valence': 0.858,  'Arousal': 0.674},
     'Anger':       {'Valence': -0.666, 'Arousal': 0.730},
@@ -114,6 +127,7 @@ VAD_MAPPING = {
     'Fear':        {'Valence': -0.854, 'Arousal': 0.680},
     'Sadness':     {'Valence': -0.896, 'Arousal': -0.424},
 }
+
 
 def map_va_to_nrc_v2_emotion(valence: float, arousal: float, threshold: float = 0.45) -> str:
     """Maps (V, A) to closest NRC VAD v2 emotion using Euclidean distance."""
@@ -142,13 +156,13 @@ def compute_otcp_intervals(v_pred: float, a_pred: float) -> Tuple[Tuple[float, f
     a_max = min(1.0, a_pred + CALIB_Q_A)
     return (round(v_min, 4), round(v_max, 4)), (round(a_min, 4), round(a_max, 4))
 
+
 # ------------------------------------------------------------------------------
-# 4. FASTAPI APP & ENDPOINT POST
+# 3. FASTAPI ENDPOINTS
 # ------------------------------------------------------------------------------
-app = FastAPI(
-    title="BEiT-3 Multimodal Emotion Recognition & OT-CP+ API",
-    description="API for continuous Valence/Arousal estimation and OT-CP+ intervals."
-)
+@app.get("/")
+def read_root():
+    return {"status": "online", "model_loaded": model is not None}
 
 
 @app.post("/predict", response_model=Interval_VA_Values)
@@ -157,41 +171,45 @@ async def predict(
     text: Optional[str] = Form(None)
 ) -> Interval_VA_Values:
 
-    if not image and not text:
+    has_image = image is not None and image.filename != ""
+    has_text = text is not None and text.strip() != ""
+
+    if not has_image and not has_text:
         raise HTTPException(
             status_code=400,
             detail="Send at least text or an image for inference."
         )
 
+    # Lazy-load model state on the first incoming request
+    if model is None:
+        load_beit3_model()
+
     if model is None:
         raise HTTPException(
-            status_code=500,
-            detail="BEiT-3 model was not loaded properly at startup."
+            status_code=503,
+            detail="Model is completing initialization. Please try again in a few seconds."
         )
 
-    # 1. Image Processing
+    # 1. Processing Image
     image_tensor = None
-    if image is not None:
+    if has_image:
         try:
             contents = await image.read()
             pil_image = Image.open(io.BytesIO(contents)).convert("RGB")
             image_tensor = transform_image(pil_image).unsqueeze(0).to(device)
-            if device.type == "cpu":
-                image_tensor = image_tensor.float()
-            else:
-                image_tensor = image_tensor.half()
+            image_tensor = image_tensor.float() if device.type == "cpu" else image_tensor.half()
         except Exception:
             raise HTTPException(
                 status_code=400,
                 detail="Unable to process the provided image file."
             )
 
-    # 2. Text Processing
+    # 2. Processing Text
     text_tokens = None
     padding_mask = None
-    if text is not None and text.strip():
+    if has_text:
         tokens = tokenizer(
-            text,
+            text.strip(),
             padding="max_length",
             max_length=128,
             truncation=True,
@@ -200,14 +218,18 @@ async def predict(
         text_tokens = tokens["input_ids"].to(device)
         padding_mask = (tokens["attention_mask"] == 0).to(device)
 
-    # 3. Model Inference
+    # 3. Native Conditional Inference (Text-Only, Image-Only, or Multimodal)
+    # NOTE: the model's forward() expects the keyword "text_description",
+    # NOT "text_segment" — using the wrong name silently drops the text
+    # input instead of raising an error, since it gets swallowed by **kwargs.
     try:
         with torch.no_grad():
-            outputs = model(
-                image=image_tensor,
-                text_segment=text_tokens,
-                padding_mask=padding_mask
-            )
+            if has_text and not has_image:
+                outputs = model(text_description=text_tokens, padding_mask=padding_mask)
+            elif has_image and not has_text:
+                outputs = model(image=image_tensor)
+            else:
+                outputs = model(image=image_tensor, text_description=text_tokens, padding_mask=padding_mask)
 
             if isinstance(outputs, (tuple, list)):
                 outputs = outputs[0]
@@ -216,16 +238,17 @@ async def predict(
             a_pred = float(outputs[0, 1].item())
 
     except Exception as e:
+        import traceback
+        print(f"[INFERENCE ERROR]: {traceback.format_exc()}")
         raise HTTPException(
             status_code=500,
             detail=f"Inference error in BEiT-3 model: {e}"
         )
 
-    # 4. Compute OTCP+ Intervals and Discrete Emotion
+    # 4. Formulate Results
     v_interval, a_interval = compute_otcp_intervals(v_pred, a_pred)
     emotion_label = map_va_to_nrc_v2_emotion(v_pred, a_pred)
 
-    # 5. Return JSON Output
     return Interval_VA_Values(
         Valence=round(v_pred, 4),
         Arousal=round(a_pred, 4),
