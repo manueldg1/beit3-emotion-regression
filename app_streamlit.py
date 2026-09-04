@@ -279,7 +279,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 analyze_btn = st.button("Analyse Contents and Predict Emotion", type="primary", use_container_width=True)
 
 # ================= API ENDPOINT =================
-API_URL = "https://emotion-api-1011510519247.europe-west1.run.app/predict"
+API_URL = "https://beit3-emotion-api-1011510519247.europe-west1.run.app/predict"
 
 # ================= ACTION LOGIC =================
 if analyze_btn:
