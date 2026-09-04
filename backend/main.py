@@ -99,6 +99,20 @@ app = FastAPI(
     description="API for continuous Valence/Arousal estimation and OT-CP+ intervals."
 )
 
+
+@app.on_event("startup")
+def warm_up_model():
+    """Kick off model loading in a background thread as soon as the
+    container starts, instead of waiting for the first real request.
+    This does NOT block Uvicorn from opening the port (so Cloud Run's
+    startup health check still passes immediately), but it means the
+    checkpoint download + model load begins right away — by the time an
+    actual visitor fills the form and clicks the button, the model is
+    often already loaded, or at least well into loading.
+    """
+    import threading
+    threading.Thread(target=load_beit3_model, daemon=True).start()
+
 # ------------------------------------------------------------------------------
 # 1. OT-CP+ CALIBRATION VALUES & PYDANTIC MODELS
 # ------------------------------------------------------------------------------
