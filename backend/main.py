@@ -55,13 +55,39 @@ def load_beit3_model():
     ])
 
     try:
-        print(f"Downloading checkpoint from Hugging Face Hub: {HF_REPO_ID}/{HF_FILENAME} ...")
-        checkpoint_path = hf_hub_download(
-            repo_id=HF_REPO_ID,
-            filename=HF_FILENAME,
-            token=HF_TOKEN,
-        )
-        print(f"Checkpoint cached locally at: {checkpoint_path}")
+        # The checkpoint is baked into the image at build time (see
+        # Dockerfile) — if it's already sitting next to this script,
+        # skip the network download entirely and load it straight from
+        # local disk. This is both faster and immune to the transient
+        # network interruptions that can occur when downloading a
+        # ~1.7GB file at runtime.
+        local_checkpoint = os.path.join(os.path.dirname(os.path.abspath(__file__)), HF_FILENAME)
+
+        if os.path.exists(local_checkpoint):
+            print(f"Using checkpoint baked into the image at: {local_checkpoint}")
+            checkpoint_path = local_checkpoint
+        else:
+            print(f"Local checkpoint not found, downloading from Hugging Face Hub: {HF_REPO_ID}/{HF_FILENAME} ...")
+            max_attempts = 4
+            checkpoint_path = None
+            last_error = None
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    checkpoint_path = hf_hub_download(
+                        repo_id=HF_REPO_ID,
+                        filename=HF_FILENAME,
+                        token=HF_TOKEN,
+                    )
+                    break
+                except Exception as download_error:
+                    last_error = download_error
+                    print(f"[WARNING] Download attempt {attempt}/{max_attempts} failed: {download_error}")
+                    if attempt < max_attempts:
+                        print("Retrying download...")
+            if checkpoint_path is None:
+                raise last_error
+
+        print(f"Checkpoint ready at: {checkpoint_path}")
 
         # Instantiate Model Architecture
         model_instance = modeling_finetune.beit3_large_patch16_480_valence_arousal(
