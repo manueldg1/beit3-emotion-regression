@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 import base64
+import time
 
 # ================= PAGE CONFIG =================
 st.set_page_config(
@@ -304,7 +305,23 @@ if analyze_btn:
 
         with st.spinner("Processing multimodal representation..."):
             try:
-                response = requests.post(API_URL, data=data, files=files if files else None)
+                response = None
+                max_attempts = 6
+                wait_seconds = 10
+
+                for attempt in range(1, max_attempts + 1):
+                    response = requests.post(API_URL, data=data, files=files if files else None)
+
+                    # The backend returns 503 with this specific message while
+                    # the model is still loading after a cold start. Instead of
+                    # showing that as an error, retry quietly a few times so
+                    # the person doesn't think the site is broken.
+                    if response.status_code == 503 and "initialization" in response.text.lower():
+                        if attempt < max_attempts:
+                            with st.spinner(f"Waking up the model (first request after idle time)... this can take up to a minute. Retrying ({attempt}/{max_attempts})..."):
+                                time.sleep(wait_seconds)
+                            continue
+                    break
 
                 if response.status_code == 200:
                     result = response.json()
