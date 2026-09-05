@@ -35,7 +35,7 @@ class HomogeneousBatchSampler(Sampler):
         self.indices_txt = []
         self.indices_multi = []
 
-        # Analisi del dataset basata sulle chiavi reali (iniziali maiuscole)
+        # Analysis of the dataset based on real keys
         for i, item in enumerate(dataset.items):
             img_val = item.get("Image_path")
             txt_val = item.get("Text")
@@ -50,11 +50,11 @@ class HomogeneousBatchSampler(Sampler):
             elif has_txt:
                 self.indices_txt.append(i)
         
-        print(f"Sampler Single-GPU: {len(self.indices_img)} immagini, "
-              f"{len(self.indices_txt)} testi, {len(self.indices_multi)} multimodali.")
+        print(f"Sampler Single-GPU: {len(self.indices_img)} imeges, "
+              f"{len(self.indices_txt)} texts, {len(self.indices_multi)} multimodals.")
 
     def __iter__(self):
-        # Mescoliamo gli indici all'interno di ogni categoria
+        # Mix the indices inside each category
         if self.shuffle:
             random.shuffle(self.indices_img)
             random.shuffle(self.indices_txt)
@@ -64,7 +64,7 @@ class HomogeneousBatchSampler(Sampler):
         for group in [self.indices_img, self.indices_txt, self.indices_multi]:
             for i in range(0, len(group), self.batch_size):
                 batch = group[i : i + self.batch_size]
-                # Creiamo solo batch completi per evitare problemi di dimensioni
+                # Create only complete batch to avoid dimensions problems
                 if len(batch) == self.batch_size:
                     batches.append(batch)
 
