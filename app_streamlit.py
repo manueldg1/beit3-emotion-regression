@@ -43,7 +43,7 @@ st.markdown("""
         text-align: center;
         margin-bottom: 0.4rem;
     }
-    .hero-title .accent { color: var(--accent); }
+    .hero-title .accent { color: var(--text-primary); }
 
     .hero-subtitle {
         font-size: 1.8rem;
@@ -94,6 +94,14 @@ st.markdown("""
     }
     .stTextArea textarea::placeholder { color: #64748B !important; opacity: 1 !important; }
     .stTextArea textarea:focus { border-color: var(--accent) !important; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important; }
+
+    /* Widget labels ("Text content:", "Image content:") — default Streamlit
+       gray label color is too dark to read against this dark background */
+    .stTextArea label p, .stFileUploader label p,
+    [data-testid="stWidgetLabel"] p {
+        color: var(--text-primary) !important;
+        font-weight: 500 !important;
+    }
 
     div[data-testid="stAlert"] {
         background: var(--bg-panel) !important;
