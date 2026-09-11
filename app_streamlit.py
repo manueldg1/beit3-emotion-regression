@@ -116,6 +116,19 @@ st.markdown("""
         overflow: hidden;
         border-radius: 12px;
         border: 1px solid var(--border-soft);
+        max-height: 280px !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: var(--bg-panel);
+    }
+
+    .image-preview-frame img {
+        max-height: 280px !important;
+        width: auto !important;
+        object-fit: contain !important;
+        display: block !important;
+        margin: 0 auto !important;
     }
 
     [data-testid="stSidebar"] { background: var(--bg-panel) !important; border-right: 1px solid var(--border-soft) !important; }
@@ -277,8 +290,7 @@ with col_right:
         img_b64 = base64.b64encode(uploaded_file.getvalue()).decode("utf-8")
         st.markdown(f"""
             <div class="image-preview-frame">
-                <img src="data:{uploaded_file.type};base64,{img_b64}"
-                     width="100%" style="display: block;">
+                <img src="data:{uploaded_file.type};base64,{img_b64}">
             </div>
         """, unsafe_allow_html=True)
     else:
